@@ -150,6 +150,39 @@ class Frustum {
 
 	}
 
+	containsBox( box ) {
+
+		const planes = this.planes;
+		const p1 = new Vector3();
+		const p2 = new Vector3();
+
+		for ( var i = 0; i < 6; i ++ ) {
+
+			const plane = planes[ i ];
+
+			p1.x = plane.normal.x > 0 ? box.min.x : box.max.x;
+			p2.x = plane.normal.x > 0 ? box.max.x : box.min.x;
+			p1.y = plane.normal.y > 0 ? box.min.y : box.max.y;
+			p2.y = plane.normal.y > 0 ? box.max.y : box.min.y;
+			p1.z = plane.normal.z > 0 ? box.min.z : box.max.z;
+			p2.z = plane.normal.z > 0 ? box.max.z : box.min.z;
+
+			const d1 = plane.distanceToPoint( p1 );
+			const d2 = plane.distanceToPoint( p2 );
+
+			// if one of them outside plane, the whole box is not contained in frustum
+			if ( d1 < 0 || d2 < 0 ) {
+
+				return false;
+
+			}
+
+		}
+
+		return true;
+
+	}
+
 	clone() {
 
 		return new this.constructor().copy( this );
