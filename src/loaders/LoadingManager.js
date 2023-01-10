@@ -1,6 +1,6 @@
 class LoadingManager {
 
-	constructor( onLoad, onProgress, onError ) {
+	constructor( onLoad, onProgress, onError, aSetCache ) {
 
 		const scope = this;
 
@@ -17,6 +17,7 @@ class LoadingManager {
 		this.onLoad = onLoad;
 		this.onProgress = onProgress;
 		this.onError = onError;
+		this.setCache = aSetCache ? aSetCache : null;
 
 		this.itemStart = function ( url ) {
 
