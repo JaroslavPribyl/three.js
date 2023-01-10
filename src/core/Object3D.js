@@ -115,6 +115,11 @@ class Object3D extends EventDispatcher {
 
 		this.userData = {};
 
+		this.grlUserData = {
+			model: null,
+			particle: null
+		};
+
 	}
 
 	onBeforeRender( /* renderer, scene, camera, geometry, material, group */ ) {}
@@ -945,6 +950,9 @@ class Object3D extends EventDispatcher {
 		this.renderOrder = source.renderOrder;
 
 		this.userData = JSON.parse( JSON.stringify( source.userData ) );
+
+		this.grlUserData.model = source.grlUserData.model;
+		this.grlUserData.particle = source.grlUserData.particle;
 
 		if ( recursive === true ) {
 
