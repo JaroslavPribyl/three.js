@@ -3,6 +3,9 @@ export default /* glsl */`
 
 	varying vec2 vUv;
 
+#ifdef USE_NORMALMAP
+    varying vec2 vUvNormalMap;
+#endif
 #endif
 #ifdef USE_MAP
 

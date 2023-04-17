@@ -277,6 +277,12 @@ function WebGLMaterials( renderer, properties ) {
 
 			refreshTransformUniform( material.map, uniforms.mapTransform );
 
+			if ( material.normalMap ) {
+
+				uniforms.offsetRepeatNormalMap.value.set( material.normalMap.offset.x, material.normalMap.offset.y, material.normalMap.repeat.x, material.normalMap.repeat.y );
+
+			}
+
 		}
 
 	}
