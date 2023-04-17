@@ -15,17 +15,17 @@ class VRTLoader extends Loader {
 
 		this.materials = null;
 		this.state = {};
-
 	}
 
 	load( url, onLoad, onProgress, onError ) {
 
+		const scope = this;
 		const loader = new FileLoader( this.manager );
 		loader.setPath( this.path );
 		loader.setResponseType( 'arraybuffer' );
 		loader.load( url, function ( response ) {
 
-			onLoad( this.parse( response ) );
+			onLoad( scope.parse( response ) );
 
 		}, onProgress, onError );
 
@@ -227,24 +227,22 @@ class VRTLoader extends Loader {
 
 	parse( response ) {
 
-		// console.time( 'VRTLoader' );
+		const uintToString = function ( uintArray ) {
 
-		var uintToString = function ( uintArray ) {
-
-			var encodedString = String.fromCharCode.apply( null, uintArray ),
+			const encodedString = String.fromCharCode.apply( null, uintArray ),
 				decodedString = decodeURIComponent( escape( encodedString ) );
 			return decodedString;
 
 		};
 
 		// read VERTICES magic string
-		var vrtMagicStringAB = uintToString( new Uint8Array( response.slice( 0, 8 ) ) );
+		const vrtMagicStringAB = uintToString( new Uint8Array( response.slice( 0, 8 ) ) );
 
 		// read vrt version
-		var vrtVersion = new Uint32Array( response.slice( 8, 12 ) )[ 0 ];
+		const vrtVersion = new Uint32Array( response.slice( 8, 12 ) )[ 0 ];
 
-		var mtlLibLen = new Uint32Array( response.slice( 12, 16 ) );
-		var mtlLibName = uintToString( new Uint8Array( response.slice( 16, 16 + mtlLibLen[ 0 ] ) ) );
+		const mtlLibLen = new Uint32Array( response.slice( 12, 16 ) );
+		const mtlLibName = uintToString( new Uint8Array( response.slice( 16, 16 + mtlLibLen[ 0 ] ) ) );
 
 		this._createParserState();
 
@@ -255,27 +253,27 @@ class VRTLoader extends Loader {
 		while ( fileCursor < response.byteLength ) {
 
 			// read group name
-			var groupNameLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
+			const groupNameLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
 			fileCursor += 4;
 
-			var groupName = uintToString( new Uint8Array( response.slice( fileCursor, fileCursor + groupNameLen ) ) );
+			const groupName = uintToString( new Uint8Array( response.slice( fileCursor, fileCursor + groupNameLen ) ) );
 			this.state.startObject( groupName );
 			fileCursor += groupNameLen;
 
 			// read used material
-			var usedMtlNameLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
+			const usedMtlNameLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
 			fileCursor += 4;
 
-			var usedMtlName = uintToString( new Uint8Array( response.slice( fileCursor, fileCursor + usedMtlNameLen ) ) );
+			const usedMtlName = uintToString( new Uint8Array( response.slice( fileCursor, fileCursor + usedMtlNameLen ) ) );
 			fileCursor += usedMtlNameLen;
 			this.state.object.startMaterial( usedMtlName, this.state.materialLibraries );
 
 			// read smoothing group
-			var smoothingGroup = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
+			const smoothingGroup = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
 			fileCursor += 4;
 			this.state.object.smooth = ( smoothingGroup === 1 );
 
-			var material = this.state.object.currentMaterial();
+			const material = this.state.object.currentMaterial();
 			if ( material ) {
 
 				material.smooth = this.state.object.smooth;
@@ -283,10 +281,10 @@ class VRTLoader extends Loader {
 			}
 
 			// decoded drc data
-			var drcDataLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
+			const drcDataLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
 			fileCursor += 4;
 
-			var drcData = new Uint8Array( response.slice( fileCursor, fileCursor + drcDataLen ) );
+			const drcData = new Uint8Array( response.slice( fileCursor, fileCursor + drcDataLen ) );
 			fileCursor += drcDataLen;
 
 			// geometry
@@ -305,3 +303,5 @@ class VRTLoader extends Loader {
 	}
 
 }
+
+export { VRTLoader };

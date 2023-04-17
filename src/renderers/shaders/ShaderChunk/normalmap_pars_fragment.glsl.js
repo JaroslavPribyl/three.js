@@ -21,8 +21,13 @@ export default /* glsl */`
 
 		vec3 q0 = dFdx( eye_pos.xyz );
 		vec3 q1 = dFdy( eye_pos.xyz );
+		#ifdef USE_NORMALMAP
+		vec2 st0 = dFdx( vUvNormalMap.st );
+		vec2 st1 = dFdy( vUvNormalMap.st );
+		#else
 		vec2 st0 = dFdx( vUv.st );
 		vec2 st1 = dFdy( vUv.st );
+		#endif
 
 		vec3 N = surf_norm; // normalized
 

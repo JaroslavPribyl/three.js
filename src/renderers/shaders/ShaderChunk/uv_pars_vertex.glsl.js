@@ -8,7 +8,10 @@ export default /* glsl */`
 	#else
 
 		varying vec2 vUv;
-
+		#ifdef USE_NORMALMAP
+			varying vec2 vUvNormalMap;
+    		uniform vec4 offsetRepeatNormalMap;
+		#endif
 	#endif
 
 	uniform mat3 uvTransform;

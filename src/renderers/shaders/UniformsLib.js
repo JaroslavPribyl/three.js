@@ -1,5 +1,6 @@
 import { Color } from '../../math/Color.js';
 import { Vector2 } from '../../math/Vector2.js';
+import { Vector4 } from '../../math/Vector4.js';
 import { Matrix3 } from '../../math/Matrix3.js';
 
 /**
@@ -68,8 +69,8 @@ const UniformsLib = {
 	normalmap: {
 
 		normalMap: { value: null },
-		normalScale: { value: /*@__PURE__*/ new Vector2( 1, 1 ) }
-
+		normalScale: { value: /*@__PURE__*/ new Vector2( 1, 1 ) },
+		offsetRepeatNormalMap: { value: new Vector4( 0, 0, 1, 1 ) }
 	},
 
 	displacementmap: {

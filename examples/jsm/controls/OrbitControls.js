@@ -25,6 +25,10 @@ class OrbitControls extends EventDispatcher {
 
 		super();
 
+		this.scene = null; // cadwork PScene object
+		this.controls = null;
+		this.keepCameraAboveBBoxBottom = true;
+
 		this.object = object;
 		this.domElement = domElement;
 		this.domElement.style.touchAction = 'none'; // disable touch scroll
@@ -91,6 +95,7 @@ class OrbitControls extends EventDispatcher {
 		this.target0 = this.target.clone();
 		this.position0 = this.object.position.clone();
 		this.zoom0 = this.object.zoom;
+		this.maxPolarAngle0 = this.maxPolarAngle;
 
 		// the target DOM element for key events
 		this._domElementKeyEvents = null;
@@ -129,6 +134,7 @@ class OrbitControls extends EventDispatcher {
 			scope.target0.copy( scope.target );
 			scope.position0.copy( scope.object.position );
 			scope.zoom0 = scope.object.zoom;
+			scope.maxPolarAngle0 = scope.maxPolarAngle;
 
 		};
 
@@ -137,7 +143,9 @@ class OrbitControls extends EventDispatcher {
 			scope.target.copy( scope.target0 );
 			scope.object.position.copy( scope.position0 );
 			scope.object.zoom = scope.zoom0;
+			scope.maxPolarAngle = scope.maxPolarAngle0;
 
+			scope.object.updateMatrixWorld( true );
 			scope.object.updateProjectionMatrix();
 			scope.dispatchEvent( _changeEvent );
 
@@ -228,6 +236,18 @@ class OrbitControls extends EventDispatcher {
 				spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) );
 
 				// move target to panned location
+
+				// target y value cannot go bellow camera position y value
+				if ( scope.scene && scope.keepCameraAboveBBoxBottom ) {
+
+					var bbox = scope.scene.getDocument().getBoundingBox();
+					if ( ( scope.target.y + panOffset.y ) < bbox.getMin().y ) {
+
+						panOffset.y = 0;
+
+					}
+
+				}
 
 				if ( scope.enableDamping === true ) {
 
@@ -355,15 +375,22 @@ class OrbitControls extends EventDispatcher {
 		const pointers = [];
 		const pointerPositions = {};
 
+		function getDomElement() {
+
+			return scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+		}
+
 		function getAutoRotationAngle() {
 
 			return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
 
 		}
 
-		function getZoomScale() {
+		function getZoomScale( speedMultiplier ) {
 
-			return Math.pow( 0.95, scope.zoomSpeed );
+			speedMultiplier = speedMultiplier || 1.0;
+			return Math.pow( 0.95, scope.zoomSpeed * speedMultiplier );
 
 		}
 
@@ -426,7 +453,7 @@ class OrbitControls extends EventDispatcher {
 
 			return function pan( deltaX, deltaY ) {
 
-				const element = scope.domElement;
+				const element = getDomElement();
 
 				if ( scope.object.isPerspectiveCamera ) {
 
@@ -510,17 +537,35 @@ class OrbitControls extends EventDispatcher {
 
 			rotateStart.set( event.clientX, event.clientY );
 
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
+
 		}
 
 		function handleMouseDownDolly( event ) {
 
 			dollyStart.set( event.clientX, event.clientY );
 
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
+
 		}
 
 		function handleMouseDownPan( event ) {
 
 			panStart.set( event.clientX, event.clientY );
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 
@@ -530,7 +575,7 @@ class OrbitControls extends EventDispatcher {
 
 			rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
 
-			const element = scope.domElement;
+			const element = getDomElement();
 
 			rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
 
@@ -540,6 +585,12 @@ class OrbitControls extends EventDispatcher {
 
 			scope.update();
 
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
+
 		}
 
 		function handleMouseMoveDolly( event ) {
@@ -548,19 +599,30 @@ class OrbitControls extends EventDispatcher {
 
 			dollyDelta.subVectors( dollyEnd, dollyStart );
 
+			// Adjust the dolly speed based on the amount moved, where 1% of the DOM element height per
+			// update is the normal speed.
+			const element = getDomElement();
+			const speedMultiplier = Math.abs( dollyDelta.y ) / ( 0.01 * element.clientHeight );
+
 			if ( dollyDelta.y > 0 ) {
 
-				dollyOut( getZoomScale() );
+				dollyOut( getZoomScale( speedMultiplier ) );
 
 			} else if ( dollyDelta.y < 0 ) {
 
-				dollyIn( getZoomScale() );
+				dollyIn( getZoomScale( speedMultiplier ) );
 
 			}
 
 			dollyStart.copy( dollyEnd );
 
 			scope.update();
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 
@@ -575,6 +637,12 @@ class OrbitControls extends EventDispatcher {
 			panStart.copy( panEnd );
 
 			scope.update();
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 
@@ -591,6 +659,12 @@ class OrbitControls extends EventDispatcher {
 			}
 
 			scope.update();
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 
@@ -689,6 +763,12 @@ class OrbitControls extends EventDispatcher {
 
 			}
 
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
+
 		}
 
 		function handleTouchStartPan() {
@@ -706,6 +786,12 @@ class OrbitControls extends EventDispatcher {
 
 			}
 
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
+
 		}
 
 		function handleTouchStartDolly() {
@@ -716,6 +802,12 @@ class OrbitControls extends EventDispatcher {
 			const distance = Math.sqrt( dx * dx + dy * dy );
 
 			dollyStart.set( 0, distance );
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 
@@ -754,13 +846,19 @@ class OrbitControls extends EventDispatcher {
 
 			rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
 
-			const element = scope.domElement;
+			const element = getDomElement();
 
 			rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
 
 			rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
 
 			rotateStart.copy( rotateEnd );
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 
@@ -787,6 +885,12 @@ class OrbitControls extends EventDispatcher {
 
 			panStart.copy( panEnd );
 
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
+
 		}
 
 		function handleTouchMoveDolly( event ) {
@@ -802,9 +906,28 @@ class OrbitControls extends EventDispatcher {
 
 			dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
 
-			dollyOut( dollyDelta.y );
+			// Adjust the dolly speed based on the amount moved, where 1% of the DOM element height per
+			// update is the normal speed.
+			const element = getDomElement();
+			const speedMultiplier = Math.abs( dollyDelta.y ) / ( 0.01 * element.clientHeight );
+
+			if ( dollyDelta.y > 0 ) {
+
+				dollyOut( getZoomScale( speedMultiplier ) );
+
+			} else if ( dollyDelta.y < 0 ) {
+
+				dollyOut( - getZoomScale( speedMultiplier ) );
+
+			}
 
 			dollyStart.copy( dollyEnd );
+
+			if ( scope.controls ) {
+
+				scope.controls.notifyUserInputHappen();
+
+			}
 
 		}
 

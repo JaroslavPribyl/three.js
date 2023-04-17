@@ -2675,11 +2675,11 @@ Texture.DEFAULT_IMAGE = null;
 Texture.DEFAULT_MAPPING = UVMapping;
 Texture.DEFAULT_ANISOTROPY = 1;
 
-class Vector4 {
+let Vector4$1 = class Vector4 {
 
 	constructor( x = 0, y = 0, z = 0, w = 1 ) {
 
-		Vector4.prototype.isVector4 = true;
+		Vector4$1.prototype.isVector4 = true;
 
 		this.x = x;
 		this.y = y;
@@ -3316,7 +3316,7 @@ class Vector4 {
 
 	}
 
-}
+};
 
 /*
  In options, we can specify:
@@ -3335,10 +3335,10 @@ class WebGLRenderTarget extends EventDispatcher {
 		this.height = height;
 		this.depth = 1;
 
-		this.scissor = new Vector4( 0, 0, width, height );
+		this.scissor = new Vector4$1( 0, 0, width, height );
 		this.scissorTest = false;
 
-		this.viewport = new Vector4( 0, 0, width, height );
+		this.viewport = new Vector4$1( 0, 0, width, height );
 
 		const image = { width: width, height: height, depth: 1 };
 
@@ -7575,6 +7575,11 @@ class Object3D extends EventDispatcher {
 
 		this.userData = {};
 
+		this.grlUserData = {
+			model: null,
+			particle: null
+		};
+
 	}
 
 	onBeforeRender( /* renderer, scene, camera, geometry, material, group */ ) {}
@@ -8405,6 +8410,9 @@ class Object3D extends EventDispatcher {
 		this.renderOrder = source.renderOrder;
 
 		this.userData = JSON.parse( JSON.stringify( source.userData ) );
+
+		this.grlUserData.model = source.grlUserData.model;
+		this.grlUserData.particle = source.grlUserData.particle;
 
 		if ( recursive === true ) {
 
@@ -11686,6 +11694,12 @@ class Camera extends Object3D {
 
 	getWorldDirection( target ) {
 
+		if ( ! target ) {
+
+			target = new Vector3();
+
+		}
+
 		this.updateWorldMatrix( true, false );
 
 		const e = this.matrixWorld.elements;
@@ -12563,6 +12577,39 @@ class Frustum {
 
 	}
 
+	containsBox( box ) {
+
+		const planes = this.planes;
+		const p1 = new Vector3();
+		const p2 = new Vector3();
+
+		for ( var i = 0; i < 6; i ++ ) {
+
+			const plane = planes[ i ];
+
+			p1.x = plane.normal.x > 0 ? box.min.x : box.max.x;
+			p2.x = plane.normal.x > 0 ? box.max.x : box.min.x;
+			p1.y = plane.normal.y > 0 ? box.min.y : box.max.y;
+			p2.y = plane.normal.y > 0 ? box.max.y : box.min.y;
+			p1.z = plane.normal.z > 0 ? box.min.z : box.max.z;
+			p2.z = plane.normal.z > 0 ? box.max.z : box.min.z;
+
+			const d1 = plane.distanceToPoint( p1 );
+			const d2 = plane.distanceToPoint( p2 );
+
+			// if one of them outside plane, the whole box is not contained in frustum
+			if ( d1 < 0 || d2 < 0 ) {
+
+				return false;
+
+			}
+
+		}
+
+		return true;
+
+	}
+
 	clone() {
 
 		return new this.constructor().copy( this );
@@ -13036,7 +13083,7 @@ var morphtarget_vertex = "#ifdef USE_MORPHTARGETS\n\ttransformed *= morphTargetB
 
 var normal_fragment_begin = "float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;\n#ifdef FLAT_SHADED\n\tvec3 fdx = dFdx( vViewPosition );\n\tvec3 fdy = dFdy( vViewPosition );\n\tvec3 normal = normalize( cross( fdx, fdy ) );\n#else\n\tvec3 normal = normalize( vNormal );\n\t#ifdef DOUBLE_SIDED\n\t\tnormal = normal * faceDirection;\n\t#endif\n\t#ifdef USE_TANGENT\n\t\tvec3 tangent = normalize( vTangent );\n\t\tvec3 bitangent = normalize( vBitangent );\n\t\t#ifdef DOUBLE_SIDED\n\t\t\ttangent = tangent * faceDirection;\n\t\t\tbitangent = bitangent * faceDirection;\n\t\t#endif\n\t\t#if defined( TANGENTSPACE_NORMALMAP ) || defined( USE_CLEARCOAT_NORMALMAP )\n\t\t\tmat3 vTBN = mat3( tangent, bitangent, normal );\n\t\t#endif\n\t#endif\n#endif\nvec3 geometryNormal = normal;";
 
-var normal_fragment_maps = "#ifdef OBJECTSPACE_NORMALMAP\n\tnormal = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;\n\t#ifdef FLIP_SIDED\n\t\tnormal = - normal;\n\t#endif\n\t#ifdef DOUBLE_SIDED\n\t\tnormal = normal * faceDirection;\n\t#endif\n\tnormal = normalize( normalMatrix * normal );\n#elif defined( TANGENTSPACE_NORMALMAP )\n\tvec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;\n\tmapN.xy *= normalScale;\n\t#ifdef USE_TANGENT\n\t\tnormal = normalize( vTBN * mapN );\n\t#else\n\t\tnormal = perturbNormal2Arb( - vViewPosition, normal, mapN, faceDirection );\n\t#endif\n#elif defined( USE_BUMPMAP )\n\tnormal = perturbNormalArb( - vViewPosition, normal, dHdxy_fwd(), faceDirection );\n#endif";
+var normal_fragment_maps = "#ifdef OBJECTSPACE_NORMALMAP\n\tnormal = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;\n\t#ifdef FLIP_SIDED\n\t\tnormal = - normal;\n\t#endif\n\t#ifdef DOUBLE_SIDED\n\t\tnormal = normal * faceDirection;\n\t#endif\n\tnormal = normalize( normalMatrix * normal );\n#elif defined( TANGENTSPACE_NORMALMAP )\n#ifdef USE_NORMALMAP\n\tvec3 mapN = texture2D( normalMap, vUvNormalMap ).xyz * 2.0 - 1.0;\n#else\n\tvec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;\n#endif\n\tmapN.xy *= normalScale;\n\t#ifdef USE_TANGENT\n\t\tnormal = normalize( vTBN * mapN );\n\t#else\n\t\tnormal = perturbNormal2Arb( - vViewPosition, normal, mapN, faceDirection );\n\t#endif\n#elif defined( USE_BUMPMAP )\n\tnormal = perturbNormalArb( - vViewPosition, normal, dHdxy_fwd(), faceDirection );\n#endif";
 
 var normal_pars_fragment = "#ifndef FLAT_SHADED\n\tvarying vec3 vNormal;\n\t#ifdef USE_TANGENT\n\t\tvarying vec3 vTangent;\n\t\tvarying vec3 vBitangent;\n\t#endif\n#endif";
 
@@ -13044,7 +13091,7 @@ var normal_pars_vertex = "#ifndef FLAT_SHADED\n\tvarying vec3 vNormal;\n\t#ifdef
 
 var normal_vertex = "#ifndef FLAT_SHADED\n\tvNormal = normalize( transformedNormal );\n\t#ifdef USE_TANGENT\n\t\tvTangent = normalize( transformedTangent );\n\t\tvBitangent = normalize( cross( vNormal, vTangent ) * tangent.w );\n\t#endif\n#endif";
 
-var normalmap_pars_fragment = "#ifdef USE_NORMALMAP\n\tuniform sampler2D normalMap;\n\tuniform vec2 normalScale;\n#endif\n#ifdef OBJECTSPACE_NORMALMAP\n\tuniform mat3 normalMatrix;\n#endif\n#if ! defined ( USE_TANGENT ) && ( defined ( TANGENTSPACE_NORMALMAP ) || defined ( USE_CLEARCOAT_NORMALMAP ) )\n\tvec3 perturbNormal2Arb( vec3 eye_pos, vec3 surf_norm, vec3 mapN, float faceDirection ) {\n\t\tvec3 q0 = dFdx( eye_pos.xyz );\n\t\tvec3 q1 = dFdy( eye_pos.xyz );\n\t\tvec2 st0 = dFdx( vUv.st );\n\t\tvec2 st1 = dFdy( vUv.st );\n\t\tvec3 N = surf_norm;\n\t\tvec3 q1perp = cross( q1, N );\n\t\tvec3 q0perp = cross( N, q0 );\n\t\tvec3 T = q1perp * st0.x + q0perp * st1.x;\n\t\tvec3 B = q1perp * st0.y + q0perp * st1.y;\n\t\tfloat det = max( dot( T, T ), dot( B, B ) );\n\t\tfloat scale = ( det == 0.0 ) ? 0.0 : faceDirection * inversesqrt( det );\n\t\treturn normalize( T * ( mapN.x * scale ) + B * ( mapN.y * scale ) + N * mapN.z );\n\t}\n#endif";
+var normalmap_pars_fragment = "#ifdef USE_NORMALMAP\n\tuniform sampler2D normalMap;\n\tuniform vec2 normalScale;\n#endif\n#ifdef OBJECTSPACE_NORMALMAP\n\tuniform mat3 normalMatrix;\n#endif\n#if ! defined ( USE_TANGENT ) && ( defined ( TANGENTSPACE_NORMALMAP ) || defined ( USE_CLEARCOAT_NORMALMAP ) )\n\tvec3 perturbNormal2Arb( vec3 eye_pos, vec3 surf_norm, vec3 mapN, float faceDirection ) {\n\t\tvec3 q0 = dFdx( eye_pos.xyz );\n\t\tvec3 q1 = dFdy( eye_pos.xyz );\n\t\t#ifdef USE_NORMALMAP\n\t\tvec2 st0 = dFdx( vUvNormalMap.st );\n\t\tvec2 st1 = dFdy( vUvNormalMap.st );\n\t\t#else\n\t\tvec2 st0 = dFdx( vUv.st );\n\t\tvec2 st1 = dFdy( vUv.st );\n\t\t#endif\n\t\tvec3 N = surf_norm;\n\t\tvec3 q1perp = cross( q1, N );\n\t\tvec3 q0perp = cross( N, q0 );\n\t\tvec3 T = q1perp * st0.x + q0perp * st1.x;\n\t\tvec3 B = q1perp * st0.y + q0perp * st1.y;\n\t\tfloat det = max( dot( T, T ), dot( B, B ) );\n\t\tfloat scale = ( det == 0.0 ) ? 0.0 : faceDirection * inversesqrt( det );\n\t\treturn normalize( T * ( mapN.x * scale ) + B * ( mapN.y * scale ) + N * mapN.z );\n\t}\n#endif";
 
 var clearcoat_normal_fragment_begin = "#ifdef USE_CLEARCOAT\n\tvec3 clearcoatNormal = geometryNormal;\n#endif";
 
@@ -13098,11 +13145,11 @@ var transmission_fragment = "#ifdef USE_TRANSMISSION\n\tmaterial.transmission = 
 
 var transmission_pars_fragment = "#ifdef USE_TRANSMISSION\n\tuniform float transmission;\n\tuniform float thickness;\n\tuniform float attenuationDistance;\n\tuniform vec3 attenuationColor;\n\t#ifdef USE_TRANSMISSIONMAP\n\t\tuniform sampler2D transmissionMap;\n\t#endif\n\t#ifdef USE_THICKNESSMAP\n\t\tuniform sampler2D thicknessMap;\n\t#endif\n\tuniform vec2 transmissionSamplerSize;\n\tuniform sampler2D transmissionSamplerMap;\n\tuniform mat4 modelMatrix;\n\tuniform mat4 projectionMatrix;\n\tvarying vec3 vWorldPosition;\n\tvec3 getVolumeTransmissionRay( const in vec3 n, const in vec3 v, const in float thickness, const in float ior, const in mat4 modelMatrix ) {\n\t\tvec3 refractionVector = refract( - v, normalize( n ), 1.0 / ior );\n\t\tvec3 modelScale;\n\t\tmodelScale.x = length( vec3( modelMatrix[ 0 ].xyz ) );\n\t\tmodelScale.y = length( vec3( modelMatrix[ 1 ].xyz ) );\n\t\tmodelScale.z = length( vec3( modelMatrix[ 2 ].xyz ) );\n\t\treturn normalize( refractionVector ) * thickness * modelScale;\n\t}\n\tfloat applyIorToRoughness( const in float roughness, const in float ior ) {\n\t\treturn roughness * clamp( ior * 2.0 - 2.0, 0.0, 1.0 );\n\t}\n\tvec4 getTransmissionSample( const in vec2 fragCoord, const in float roughness, const in float ior ) {\n\t\tfloat framebufferLod = log2( transmissionSamplerSize.x ) * applyIorToRoughness( roughness, ior );\n\t\t#ifdef texture2DLodEXT\n\t\t\treturn texture2DLodEXT( transmissionSamplerMap, fragCoord.xy, framebufferLod );\n\t\t#else\n\t\t\treturn texture2D( transmissionSamplerMap, fragCoord.xy, framebufferLod );\n\t\t#endif\n\t}\n\tvec3 applyVolumeAttenuation( const in vec3 radiance, const in float transmissionDistance, const in vec3 attenuationColor, const in float attenuationDistance ) {\n\t\tif ( isinf( attenuationDistance ) ) {\n\t\t\treturn radiance;\n\t\t} else {\n\t\t\tvec3 attenuationCoefficient = -log( attenuationColor ) / attenuationDistance;\n\t\t\tvec3 transmittance = exp( - attenuationCoefficient * transmissionDistance );\t\t\treturn transmittance * radiance;\n\t\t}\n\t}\n\tvec4 getIBLVolumeRefraction( const in vec3 n, const in vec3 v, const in float roughness, const in vec3 diffuseColor,\n\t\tconst in vec3 specularColor, const in float specularF90, const in vec3 position, const in mat4 modelMatrix,\n\t\tconst in mat4 viewMatrix, const in mat4 projMatrix, const in float ior, const in float thickness,\n\t\tconst in vec3 attenuationColor, const in float attenuationDistance ) {\n\t\tvec3 transmissionRay = getVolumeTransmissionRay( n, v, thickness, ior, modelMatrix );\n\t\tvec3 refractedRayExit = position + transmissionRay;\n\t\tvec4 ndcPos = projMatrix * viewMatrix * vec4( refractedRayExit, 1.0 );\n\t\tvec2 refractionCoords = ndcPos.xy / ndcPos.w;\n\t\trefractionCoords += 1.0;\n\t\trefractionCoords /= 2.0;\n\t\tvec4 transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );\n\t\tvec3 attenuatedColor = applyVolumeAttenuation( transmittedLight.rgb, length( transmissionRay ), attenuationColor, attenuationDistance );\n\t\tvec3 F = EnvironmentBRDF( n, v, specularColor, specularF90, roughness );\n\t\treturn vec4( ( 1.0 - F ) * attenuatedColor * diffuseColor, transmittedLight.a );\n\t}\n#endif";
 
-var uv_pars_fragment = "#if ( defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY ) )\n\tvarying vec2 vUv;\n#endif";
+var uv_pars_fragment = "#if ( defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY ) )\n\tvarying vec2 vUv;\n#ifdef USE_NORMALMAP\n    varying vec2 vUvNormalMap;\n#endif\n#endif";
 
-var uv_pars_vertex = "#ifdef USE_UV\n\t#ifdef UVS_VERTEX_ONLY\n\t\tvec2 vUv;\n\t#else\n\t\tvarying vec2 vUv;\n\t#endif\n\tuniform mat3 uvTransform;\n#endif";
+var uv_pars_vertex = "#ifdef USE_UV\n\t#ifdef UVS_VERTEX_ONLY\n\t\tvec2 vUv;\n\t#else\n\t\tvarying vec2 vUv;\n\t\t#ifdef USE_NORMALMAP\n\t\t\tvarying vec2 vUvNormalMap;\n    \t\tuniform vec4 offsetRepeatNormalMap;\n\t\t#endif\n\t#endif\n\tuniform mat3 uvTransform;\n#endif";
 
-var uv_vertex = "#ifdef USE_UV\n\tvUv = ( uvTransform * vec3( uv, 1 ) ).xy;\n#endif";
+var uv_vertex = "#ifdef USE_UV\n\tvUv = ( uvTransform * vec3( uv, 1 ) ).xy;\n#ifdef USE_NORMALMAP\n    vUvNormalMap = uv * offsetRepeatNormalMap.zw + offsetRepeatNormalMap.xy;\n#endif\n#endif";
 
 var uv2_pars_fragment = "#if defined( USE_LIGHTMAP ) || defined( USE_AOMAP )\n\tvarying vec2 vUv2;\n#endif";
 
@@ -13390,8 +13437,8 @@ const UniformsLib = {
 	normalmap: {
 
 		normalMap: { value: null },
-		normalScale: { value: /*@__PURE__*/ new Vector2( 1, 1 ) }
-
+		normalScale: { value: /*@__PURE__*/ new Vector2( 1, 1 ) },
+		offsetRepeatNormalMap: { value: new Vector4( 0, 0, 1, 1 ) }
 	},
 
 	displacementmap: {
@@ -16728,7 +16775,7 @@ function WebGLMorphtargets( gl, capabilities, textures ) {
 	const influencesList = {};
 	const morphInfluences = new Float32Array( 8 );
 	const morphTextures = new WeakMap();
-	const morph = new Vector4();
+	const morph = new Vector4$1();
 
 	const workInfluences = [];
 
@@ -20832,7 +20879,7 @@ function WebGLShadowMap( _renderer, _objects, _capabilities ) {
 	const _shadowMapSize = new Vector2(),
 		_viewportSize = new Vector2(),
 
-		_viewport = new Vector4(),
+		_viewport = new Vector4$1(),
 
 		_depthMaterial = new MeshDepthMaterial( { depthPacking: RGBADepthPacking } ),
 		_distanceMaterial = new MeshDistanceMaterial(),
@@ -20841,7 +20888,7 @@ function WebGLShadowMap( _renderer, _objects, _capabilities ) {
 
 		_maxTextureSize = _capabilities.maxTextureSize;
 
-	const shadowSide = { 0: BackSide, 1: FrontSide, 2: DoubleSide };
+	const shadowSide = { [ FrontSide ]: BackSide, [ BackSide ]: FrontSide, [ DoubleSide ]: DoubleSide, [ TwoPassDoubleSide ]: DoubleSide };
 
 	const shadowMaterialVertical = new ShaderMaterial( {
 		defines: {
@@ -21193,9 +21240,9 @@ function WebGLState( gl, extensions, capabilities ) {
 
 		let locked = false;
 
-		const color = new Vector4();
+		const color = new Vector4$1();
 		let currentColorMask = null;
-		const currentColorClear = new Vector4( 0, 0, 0, 0 );
+		const currentColorClear = new Vector4$1( 0, 0, 0, 0 );
 
 		return {
 
@@ -21543,8 +21590,8 @@ function WebGLState( gl, extensions, capabilities ) {
 	const scissorParam = gl.getParameter( gl.SCISSOR_BOX );
 	const viewportParam = gl.getParameter( gl.VIEWPORT );
 
-	const currentScissor = new Vector4().fromArray( scissorParam );
-	const currentViewport = new Vector4().fromArray( viewportParam );
+	const currentScissor = new Vector4$1().fromArray( scissorParam );
+	const currentViewport = new Vector4$1().fromArray( viewportParam );
 
 	function createTexture( type, target, count ) {
 
@@ -25178,11 +25225,11 @@ class WebXRManager extends EventDispatcher {
 
 		const cameraL = new PerspectiveCamera();
 		cameraL.layers.enable( 1 );
-		cameraL.viewport = new Vector4();
+		cameraL.viewport = new Vector4$1();
 
 		const cameraR = new PerspectiveCamera();
 		cameraR.layers.enable( 2 );
-		cameraR.viewport = new Vector4();
+		cameraR.viewport = new Vector4$1();
 
 		const cameras = [ cameraL, cameraR ];
 
@@ -25803,7 +25850,7 @@ class WebXRManager extends EventDispatcher {
 
 						camera = new PerspectiveCamera();
 						camera.layers.enable( i );
-						camera.viewport = new Vector4();
+						camera.viewport = new Vector4$1();
 						cameras[ i ] = camera;
 
 					}
@@ -26280,6 +26327,12 @@ function WebGLMaterials( renderer, properties ) {
 			}
 
 			uniforms.uv2Transform.value.copy( uv2ScaleMap.matrix );
+
+			if ( material.normalMap ) {
+
+				uniforms.offsetRepeatNormalMap.value.set( material.normalMap.offset.x, material.normalMap.offset.y, material.normalMap.repeat.x, material.normalMap.repeat.y );
+
+			}
 
 		}
 
@@ -27111,8 +27164,8 @@ function WebGLRenderer( parameters = {} ) {
 
 	let _currentCamera = null;
 
-	const _currentViewport = new Vector4();
-	const _currentScissor = new Vector4();
+	const _currentViewport = new Vector4$1();
+	const _currentScissor = new Vector4$1();
 	let _currentScissorTest = null;
 
 	//
@@ -27124,8 +27177,8 @@ function WebGLRenderer( parameters = {} ) {
 	let _opaqueSort = null;
 	let _transparentSort = null;
 
-	const _viewport = new Vector4( 0, 0, _width, _height );
-	const _scissor = new Vector4( 0, 0, _width, _height );
+	const _viewport = new Vector4$1( 0, 0, _width, _height );
+	const _scissor = new Vector4$1( 0, 0, _width, _height );
 	let _scissorTest = false;
 
 	// frustum
@@ -30255,8 +30308,8 @@ class LOD extends Object3D {
 
 const _basePosition = /*@__PURE__*/ new Vector3();
 
-const _skinIndex = /*@__PURE__*/ new Vector4();
-const _skinWeight = /*@__PURE__*/ new Vector4();
+const _skinIndex = /*@__PURE__*/ new Vector4$1();
+const _skinWeight = /*@__PURE__*/ new Vector4$1();
 
 const _vector$5 = /*@__PURE__*/ new Vector3();
 const _matrix = /*@__PURE__*/ new Matrix4();
@@ -30318,7 +30371,7 @@ class SkinnedMesh extends Mesh {
 
 	normalizeSkinWeights() {
 
-		const vector = new Vector4();
+		const vector = new Vector4$1();
 
 		const skinWeight = this.geometry.attributes.skinWeight;
 
@@ -40048,7 +40101,7 @@ const Cache = {
 
 class LoadingManager {
 
-	constructor( onLoad, onProgress, onError ) {
+	constructor( onLoad, onProgress, onError, aSetCache ) {
 
 		const scope = this;
 
@@ -40065,6 +40118,7 @@ class LoadingManager {
 		this.onLoad = onLoad;
 		this.onProgress = onProgress;
 		this.onError = onError;
+		this.setCache = aSetCache ? aSetCache : null;
 
 		this.itemStart = function ( url ) {
 
@@ -41111,7 +41165,7 @@ class LightShadow {
 
 		this._viewports = [
 
-			new Vector4( 0, 0, 1, 1 )
+			new Vector4$1( 0, 0, 1, 1 )
 
 		];
 
@@ -41362,17 +41416,17 @@ class PointLightShadow extends LightShadow {
 			// z - Negative z direction
 
 			// positive X
-			new Vector4( 2, 1, 1, 1 ),
+			new Vector4$1( 2, 1, 1, 1 ),
 			// negative X
-			new Vector4( 0, 1, 1, 1 ),
+			new Vector4$1( 0, 1, 1, 1 ),
 			// positive Z
-			new Vector4( 3, 1, 1, 1 ),
+			new Vector4$1( 3, 1, 1, 1 ),
 			// negative Z
-			new Vector4( 1, 1, 1, 1 ),
+			new Vector4$1( 1, 1, 1, 1 ),
 			// positive Y
-			new Vector4( 3, 0, 1, 1 ),
+			new Vector4$1( 3, 0, 1, 1 ),
 			// negative Y
-			new Vector4( 1, 0, 1, 1 )
+			new Vector4$1( 1, 0, 1, 1 )
 		];
 
 		this._cubeDirections = [
@@ -42047,7 +42101,7 @@ class MaterialLoader extends Loader {
 						break;
 
 					case 'v4':
-						material.uniforms[ name ].value = new Vector4().fromArray( uniform.value );
+						material.uniforms[ name ].value = new Vector4$1().fromArray( uniform.value );
 						break;
 
 					case 'm3':
@@ -50635,7 +50689,7 @@ exports.UnsignedShortType = UnsignedShortType;
 exports.VSMShadowMap = VSMShadowMap;
 exports.Vector2 = Vector2;
 exports.Vector3 = Vector3;
-exports.Vector4 = Vector4;
+exports.Vector4 = Vector4$1;
 exports.VectorKeyframeTrack = VectorKeyframeTrack;
 exports.VideoTexture = VideoTexture;
 exports.WebGL1Renderer = WebGL1Renderer;

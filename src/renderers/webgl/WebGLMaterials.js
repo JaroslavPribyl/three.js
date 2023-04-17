@@ -358,6 +358,12 @@ function WebGLMaterials( renderer, properties ) {
 
 			uniforms.uv2Transform.value.copy( uv2ScaleMap.matrix );
 
+			if ( material.normalMap ) {
+
+				uniforms.offsetRepeatNormalMap.value.set( material.normalMap.offset.x, material.normalMap.offset.y, material.normalMap.repeat.x, material.normalMap.repeat.y );
+
+			}
+
 		}
 
 	}
