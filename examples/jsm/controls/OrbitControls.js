@@ -46,6 +46,11 @@ class OrbitControls extends Controls {
 
 		super( object, domElement );
 
+		this.scene = null; // cadwork PScene object
+		this.controls = null;
+		this.keepCameraAboveBBoxBottom = true;
+		this.maxPolarAngle0 = this.maxPolarAngle;
+
 		this.state = _STATE.NONE;
 
 		// Set to false to disable this control
@@ -272,6 +277,7 @@ class OrbitControls extends Controls {
 		this.target0.copy( this.target );
 		this.position0.copy( this.object.position );
 		this.zoom0 = this.object.zoom;
+		this.maxPolarAngle0 = this.maxPolarAngle;
 
 	}
 
@@ -280,7 +286,9 @@ class OrbitControls extends Controls {
 		this.target.copy( this.target0 );
 		this.object.position.copy( this.position0 );
 		this.object.zoom = this.zoom0;
+		this.maxPolarAngle = this.maxPolarAngle0;
 
+		this.object.updateMatrixWorld( true );
 		this.object.updateProjectionMatrix();
 		this.dispatchEvent( _changeEvent );
 
@@ -350,6 +358,17 @@ class OrbitControls extends Controls {
 
 		this._spherical.makeSafe();
 
+		// target y value cannot go bellow camera position y value
+		if ( this.scene && this.keepCameraAboveBBoxBottom ) {
+
+			var bbox = this.scene.getDocument().getBoundingBox();
+			if ( ( this.target.y + this._panOffset.y ) < bbox.getMin().y ) {
+
+				this._panOffset.y = 0;
+
+			}
+
+		}
 
 		// move target to panned location
 
@@ -688,6 +707,11 @@ class OrbitControls extends Controls {
 
 		this._rotateStart.set( event.clientX, event.clientY );
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 	}
 
 	_handleMouseDownDolly( event ) {
@@ -695,12 +719,22 @@ class OrbitControls extends Controls {
 		this._updateZoomParameters( event.clientX, event.clientX );
 		this._dollyStart.set( event.clientX, event.clientY );
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 	}
 
 	_handleMouseDownPan( event ) {
 
 		this._panStart.set( event.clientX, event.clientY );
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 	}
 
 	_handleMouseMoveRotate( event ) {
@@ -718,6 +752,12 @@ class OrbitControls extends Controls {
 		this._rotateStart.copy( this._rotateEnd );
 
 		this.update();
+
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 
 	}
 
@@ -741,6 +781,12 @@ class OrbitControls extends Controls {
 
 		this.update();
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
+
 	}
 
 	_handleMouseMovePan( event ) {
@@ -754,6 +800,12 @@ class OrbitControls extends Controls {
 		this._panStart.copy( this._panEnd );
 
 		this.update();
+
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 
 	}
 
@@ -772,6 +824,12 @@ class OrbitControls extends Controls {
 		}
 
 		this.update();
+
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 
 	}
 
@@ -904,6 +962,12 @@ class OrbitControls extends Controls {
 
 		}
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
+
 	}
 
 	_handleTouchStartPan( event ) {
@@ -923,6 +987,12 @@ class OrbitControls extends Controls {
 
 		}
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
+
 	}
 
 	_handleTouchStartDolly( event ) {
@@ -935,6 +1005,12 @@ class OrbitControls extends Controls {
 		const distance = Math.sqrt( dx * dx + dy * dy );
 
 		this._dollyStart.set( 0, distance );
+
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 
 	}
 
@@ -981,6 +1057,12 @@ class OrbitControls extends Controls {
 
 		this._rotateStart.copy( this._rotateEnd );
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
+
 	}
 
 	_handleTouchMovePan( event ) {
@@ -1006,6 +1088,12 @@ class OrbitControls extends Controls {
 
 		this._panStart.copy( this._panEnd );
 
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
+
 	}
 
 	_handleTouchMoveDolly( event ) {
@@ -1029,6 +1117,12 @@ class OrbitControls extends Controls {
 		const centerY = ( event.pageY + position.y ) * 0.5;
 
 		this._updateZoomParameters( centerX, centerY );
+
+		if ( this.controls ) {
+
+			this.controls.notifyUserInputHappen();
+
+		}
 
 	}
 
