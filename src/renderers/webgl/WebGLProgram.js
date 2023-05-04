@@ -1,7 +1,27 @@
 import { WebGLUniforms } from './WebGLUniforms.js';
 import { WebGLShader } from './WebGLShader.js';
 import { ShaderChunk } from '../shaders/ShaderChunk.js';
-import { NoToneMapping, AddOperation, MixOperation, MultiplyOperation, CubeRefractionMapping, CubeUVReflectionMapping, CubeReflectionMapping, PCFSoftShadowMap, PCFShadowMap, VSMShadowMap, ACESFilmicToneMapping, CineonToneMapping, CustomToneMapping, ReinhardToneMapping, LinearToneMapping, sRGBEncoding, LinearEncoding, GLSL3 } from '../../constants.js';
+import {
+	NoToneMapping,
+	AddOperation,
+	MixOperation,
+	MultiplyOperation,
+	CubeRefractionMapping,
+	CubeUVReflectionMapping,
+	CubeReflectionMapping,
+	PCFSoftShadowMap,
+	PCFShadowMap,
+	VSMShadowMap,
+	ACESFilmicToneMapping,
+	CineonToneMapping,
+	CustomToneMapping,
+	ReinhardToneMapping,
+	LinearToneMapping,
+	sRGBEncoding,
+	LinearEncoding,
+	GLSL3,
+	PCSShadowMap
+} from '../../constants.js';
 
 let programIdCount = 0;
 
@@ -290,6 +310,10 @@ function generateShadowMapTypeDefine( parameters ) {
 	} else if ( parameters.shadowMapType === VSMShadowMap ) {
 
 		shadowMapTypeDefine = 'SHADOWMAP_TYPE_VSM';
+
+	} else if ( parameters.shadowMapType === PCSShadowMap ) {
+
+		shadowMapTypeDefine = 'SHADOWMAP_TYPE_PCSS';
 
 	}
 
@@ -670,6 +694,15 @@ function WebGLProgram( renderer, cacheKey, parameters, bindingStates ) {
 
 			parameters.shadowMapEnabled ? '#define USE_SHADOWMAP' : '',
 			parameters.shadowMapEnabled ? '#define ' + shadowMapTypeDefine : '',
+
+			parameters.shadowMapEnabled ? '#define LIGHT_WORLD_SIZE 0.005' : '',
+			parameters.shadowMapEnabled ? '#define LIGHT_FRUSTUM_WIDTH 3.75' : '',
+			parameters.shadowMapEnabled ? '#define LIGHT_SIZE_UV (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH)' : '',
+			parameters.shadowMapEnabled ? '#define NEAR_PLANE 5.5' : '',
+			parameters.shadowMapEnabled ? '#define NUM_SAMPLES 9' : '',
+			parameters.shadowMapEnabled ? '#define NUM_RINGS 7' : '',
+			parameters.shadowMapEnabled ? '#define BLOCKER_SEARCH_NUM_SAMPLES NUM_SAMPLES' : '',
+			parameters.shadowMapEnabled ? '#define PCF_NUM_SAMPLES NUM_SAMPLES' : '',
 
 			parameters.premultipliedAlpha ? '#define PREMULTIPLIED_ALPHA' : '',
 

@@ -288,7 +288,8 @@ const ShaderLib = {
 			UniformsLib.fog,
 			{
 				color: { value: /*@__PURE__*/ new Color( 0x00000 ) },
-				opacity: { value: 1.0 }
+				opacity: { value: 1.0 },
+				light_size_uv: { value: 0 }
 			},
 		] ),
 

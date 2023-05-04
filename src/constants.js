@@ -9,6 +9,7 @@ export const BasicShadowMap = 0;
 export const PCFShadowMap = 1;
 export const PCFSoftShadowMap = 2;
 export const VSMShadowMap = 3;
+export const PCSShadowMap = 4;
 export const FrontSide = 0;
 export const BackSide = 1;
 export const DoubleSide = 2;

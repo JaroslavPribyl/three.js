@@ -12,7 +12,7 @@ export default /* glsl */`
 #endif
 
 #ifdef USE_SHADOWMAP
-
+	uniform float light_size_uv;
 	#if NUM_DIR_LIGHT_SHADOWS > 0
 
 		uniform sampler2D directionalShadowMap[ NUM_DIR_LIGHT_SHADOWS ];
@@ -103,6 +103,66 @@ export default /* glsl */`
 
 	}
 
+    #if defined( SHADOWMAP_TYPE_PCSS )
+        vec2 poissonDisk[NUM_SAMPLES];
+
+        void initPoissonSamples( const in vec2 randomSeed ) {
+            float ANGLE_STEP = PI2 * float( NUM_RINGS ) / float( NUM_SAMPLES );
+            float INV_NUM_SAMPLES = 1.0 / float( NUM_SAMPLES );
+
+            // jsfiddle that shows sample pattern: https://jsfiddle.net/a16ff1p7/
+            float angle = rand( randomSeed ) * PI2;
+            float radius = INV_NUM_SAMPLES;
+            float radiusStep = radius;
+
+            for( int i = 0; i < NUM_SAMPLES; i ++ ) {
+                poissonDisk[i] = vec2( cos( angle ), sin( angle ) ) * pow( radius, 0.75 );
+                radius += radiusStep;
+                angle += ANGLE_STEP;
+            }
+        }
+
+        float penumbraSize( const in float zReceiver, const in float zBlocker ) { // Parallel plane estimation
+            return (zReceiver - zBlocker) / zBlocker;
+        }
+
+        float findBlocker( sampler2D shadowMap, const in vec2 uv, const in float zReceiver ) {
+            // This uses similar triangles to compute what
+            // area of the shadow map we should search
+            //float searchRadius = LIGHT_SIZE_UV * ( zReceiver - NEAR_PLANE ) / zReceiver;
+            float searchRadius = (light_size_uv * ( zReceiver - NEAR_PLANE ) / zReceiver);
+            float blockerDepthSum = 0.0;
+            int numBlockers = 0;
+
+            // original method
+            for( int i = 0; i < BLOCKER_SEARCH_NUM_SAMPLES; i++ ) {
+                float shadowMapDepth = unpackRGBAToDepth(texture2D(shadowMap, uv + poissonDisk[i] * searchRadius));
+                if ( shadowMapDepth < zReceiver ) {
+                    //blockerDepthSum += (1.0 - shadowMapDepth) / (zReceiver * zReceiver);
+                    blockerDepthSum += 1.0 + log(1.0 - shadowMapDepth);
+                    numBlockers ++;
+                }
+            }
+
+            if( numBlockers == 0 ) return -1.0;
+
+            return blockerDepthSum / float( numBlockers );
+        }
+
+        float PCF_Filter(sampler2D shadowMap, vec2 uv, float zReceiver, float filterRadius ) {
+            float sum = 0.0;
+            for( int i = 0; i < PCF_NUM_SAMPLES; i ++ ) {
+                float depth = unpackRGBAToDepth( texture2D( shadowMap, uv + poissonDisk[ i ] * filterRadius ) );
+                if( zReceiver <= depth ) sum += 1.0;
+            }
+            for( int i = 0; i < PCF_NUM_SAMPLES; i ++ ) {
+                float depth = unpackRGBAToDepth( texture2D( shadowMap, uv + -poissonDisk[ i ].yx * filterRadius ) );
+                if( zReceiver <= depth ) sum += 1.0;
+            }
+            return sum / ( 2.0 * float( PCF_NUM_SAMPLES ) );
+        }
+    #endif
+
 	float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
 
 		float shadow = 1.0;
@@ -188,7 +248,28 @@ export default /* glsl */`
 
 			shadow = VSMShadow( shadowMap, shadowCoord.xy, shadowCoord.z );
 
-		#else // no percentage-closer filtering:
+
+		#elif defined( SHADOWMAP_TYPE_PCSS )
+            vec2 uv = shadowCoord.xy;
+            float zReceiver = shadowCoord.z; // Assumed to be eye-space z in this code
+
+            initPoissonSamples( uv );
+            // STEP 1: blocker search
+            float avgBlockerDepth = findBlocker( shadowMap, uv, zReceiver );
+
+            //There are no occluders so early out (this saves filtering)
+            if( avgBlockerDepth == -1.0 ) return 1.0;
+
+            // STEP 2: penumbra size
+            float penumbraRatio = penumbraSize( zReceiver, avgBlockerDepth );
+            //float filterRadius = penumbraRatio * LIGHT_SIZE_UV * NEAR_PLANE / zReceiver;
+            float filterRadius = penumbraRatio * light_size_uv * NEAR_PLANE / zReceiver;
+
+            // STEP 3: filtering
+            //return avgBlockerDepth;
+            shadow = PCF_Filter( shadowMap, uv, zReceiver, filterRadius );
+
+        #else // no percentage-closer filtering:
 
 			shadow = texture2DCompare( shadowMap, shadowCoord.xy, shadowCoord.z );
 
@@ -286,7 +367,7 @@ export default /* glsl */`
 		// bd3D = base direction 3D
 		vec3 bd3D = normalize( lightToPosition );
 
-		#if defined( SHADOWMAP_TYPE_PCF ) || defined( SHADOWMAP_TYPE_PCF_SOFT ) || defined( SHADOWMAP_TYPE_VSM )
+		#if defined( SHADOWMAP_TYPE_PCF ) || defined( SHADOWMAP_TYPE_PCF_SOFT ) || defined( SHADOWMAP_TYPE_VSM ) || defined( SHADOWMAP_TYPE_PCSS )
 
 			vec2 offset = vec2( - 1, 1 ) * shadowRadius * texelSize.y;
 
