@@ -1,5 +1,5 @@
 import {
-	AdditiveBlending,
+	NormalBlending,
 	Color,
 	DoubleSide,
 	Matrix4,
@@ -28,12 +28,10 @@ class OutlinePass extends Pass {
 		this.hiddenEdgeColor = new Color( 0.1, 0.04, 0.02 );
 		this.edgeGlow = 0.0;
 		this.usePatternTexture = false;
-		this.edgeThickness = 1.0;
-		this.edgeStrength = 3.0;
-		this.downSampleRatio = 2;
+		this.edgeThickness = 6.0;
+		this.edgeStrength = 6.0;
+		this.downSampleRatio = 1;
 		this.pulsePeriod = 0;
-
-		this._visibilityCache = new Map();
 
 
 		this.resolution = ( resolution !== undefined ) ? new Vector2( resolution.x, resolution.y ) : new Vector2( 256, 256 );
@@ -175,22 +173,11 @@ class OutlinePass extends Pass {
 
 	changeVisibilityOfSelectedObjects( bVisible ) {
 
-		const cache = this._visibilityCache;
-
 		function gatherSelectedMeshesCallBack( object ) {
 
 			if ( object.isMesh ) {
 
-				if ( bVisible === true ) {
-
-					object.visible = cache.get( object );
-
-				} else {
-
-					cache.set( object, object.visible );
-					object.visible = bVisible;
-
-				}
+				object.visible = bVisible;
 
 			}
 
@@ -207,7 +194,6 @@ class OutlinePass extends Pass {
 
 	changeVisibilityOfNonSelectedObjects( bVisible ) {
 
-		const cache = this._visibilityCache;
 		const selectedMeshes = [];
 
 		function gatherSelectedMeshesCallBack( object ) {
@@ -248,13 +234,13 @@ class OutlinePass extends Pass {
 
 					const visibility = object.visible;
 
-					if ( bVisible === false || cache.get( object ) === true ) {
+					if ( bVisible === false || object.bVisible === true ) {
 
 						object.visible = bVisible;
 
 					}
 
-					cache.set( object, visibility );
+					object.bVisible = visibility;
 
 				}
 
@@ -265,11 +251,10 @@ class OutlinePass extends Pass {
 
 				if ( bVisible === true ) {
 
-					object.visible = cache.get( object ); // restore
+					object.visible = object.bVisible;
 
 				} else {
 
-					cache.set( object, object.visible );
 					object.visible = bVisible;
 
 				}
@@ -321,7 +306,6 @@ class OutlinePass extends Pass {
 
 			// Make selected objects visible
 			this.changeVisibilityOfSelectedObjects( true );
-			this._visibilityCache.clear();
 
 			// Update Texture Matrix for Depth compare
 			this.updateTextureMatrix();
@@ -337,7 +321,6 @@ class OutlinePass extends Pass {
 			renderer.render( this.renderScene, this.renderCamera );
 			this.renderScene.overrideMaterial = null;
 			this.changeVisibilityOfNonSelectedObjects( true );
-			this._visibilityCache.clear();
 
 			this.renderScene.background = currentBackground;
 
@@ -405,24 +388,25 @@ class OutlinePass extends Pass {
 			this.overlayMaterial.uniforms[ 'edgeStrength' ].value = this.edgeStrength;
 			this.overlayMaterial.uniforms[ 'edgeGlow' ].value = this.edgeGlow;
 			this.overlayMaterial.uniforms[ 'usePatternTexture' ].value = this.usePatternTexture;
+			this.overlayMaterial.uniforms[ 'visibleEdgeColor' ].value = this.visibleEdgeColor;
 
 
 			if ( maskActive ) renderer.state.buffers.stencil.setTest( true );
 
-			renderer.setRenderTarget( readBuffer );
-			this.fsQuad.render( renderer );
+			if ( this.renderToScreen ) {
+
+				renderer.setRenderTarget( null );
+				this.fsQuad.render( renderer );
+
+			} else {
+
+				renderer.setRenderTarget( readBuffer );
+				this.fsQuad.render( renderer );
+
+			}
 
 			renderer.setClearColor( this._oldClearColor, this.oldClearAlpha );
 			renderer.autoClear = oldAutoClear;
-
-		}
-
-		if ( this.renderToScreen ) {
-
-			this.fsQuad.material = this.materialCopy;
-			this.copyUniforms[ 'tDiffuse' ].value = readBuffer.texture;
-			renderer.setRenderTarget( null );
-			this.fsQuad.render( renderer );
 
 		}
 
@@ -463,7 +447,7 @@ class OutlinePass extends Pass {
 						worldPosition = instanceMatrix * worldPosition;
 
 					#endif
-					
+
 					worldPosition = modelMatrix * worldPosition;
 
 					projTexCoord = textureMatrix * worldPosition;
@@ -605,7 +589,8 @@ class OutlinePass extends Pass {
 				'patternTexture': { value: null },
 				'edgeStrength': { value: 1.0 },
 				'edgeGlow': { value: 1.0 },
-				'usePatternTexture': { value: 0.0 }
+				'usePatternTexture': { value: 0.0 },
+				'visibleEdgeColor': { value: new Vector3( 1.0, 1.0, 1.0 ) }
 			},
 
 			vertexShader:
@@ -626,6 +611,7 @@ class OutlinePass extends Pass {
 				uniform float edgeStrength;
 				uniform float edgeGlow;
 				uniform bool usePatternTexture;
+				uniform vec3 visibleEdgeColor;
 
 				void main() {
 					vec4 edgeValue1 = texture2D(edgeTexture1, vUv);
@@ -637,9 +623,11 @@ class OutlinePass extends Pass {
 					vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
 					if(usePatternTexture)
 						finalColor += + visibilityFactor * (1.0 - maskColor.r) * (1.0 - patternColor.r);
-					gl_FragColor = finalColor;
+					//gl_FragColor = finalColor;
+					gl_FragColor = vec4(visibleEdgeColor, 1.0);
+					gl_FragColor.a = (finalColor.r + finalColor.g + finalColor.b) * 10.0 / 3.0;
 				}`,
-			blending: AdditiveBlending,
+			blending: NormalBlending,
 			depthTest: false,
 			depthWrite: false,
 			transparent: true
