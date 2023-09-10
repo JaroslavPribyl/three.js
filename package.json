@@ -1,5 +1,5 @@
 {
-  "name": "three",
+  "name": "@vertices3/three",
   "version": "0.148.0",
   "description": "JavaScript 3D library",
   "type": "module",
