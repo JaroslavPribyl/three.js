@@ -1,5 +1,5 @@
 {
-  "name": "@vertices3/three",
+  "name": "three",
   "version": "0.148.0",
   "description": "JavaScript 3D library",
   "type": "module",
@@ -94,6 +94,8 @@
     "> 1%, not dead, not ie 11, not op_mini all"
   ],
   "scripts": {
+    "start-dev": "npm run start",
+    "start-rel": "npm run start",
     "start": "npm run dev",
     "test": "npm run lint && npm run test-unit",
     "build-dev": "npm run build",
