@@ -102,7 +102,7 @@
     "build-rel": "npm run build",
     "build": "rollup -c utils/build/rollup.config.js",
     "build-module": "rollup -c utils/build/rollup.config.js --configOnlyModule",
-    "dev": "concurrently --names \"ROLLUP,HTTP\" -c \"bgBlue.bold,bgGreen.bold\" \"rollup -c utils/build/rollup.config.js -w -m inline\" \"servez -p 8080 --ssl\"",
+    "dev": "concurrently --handle-input --names \"ROLLUP,HTTP\" -c \"bgBlue.bold,bgGreen.bold\" \"rollup -c utils/build/rollup.config.js -w -m inline\" \"servez -p 8080 --ssl\"",
     "lint": "eslint src --ext js",
     "lint-examples": "eslint examples/jsm examples/*.html --ext js,html --ignore-pattern libs --ignore-pattern ifc",
     "lint-docs": "eslint docs --ext html",
