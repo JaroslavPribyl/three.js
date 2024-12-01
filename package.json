@@ -5,10 +5,15 @@
   "type": "module",
   "main": "./build/three.js",
   "module": "./build/three.module.js",
+  "types": "./types/index.d.ts",
   "exports": {
     ".": {
       "import": "./build/three.module.js",
-      "require": "./build/three.cjs"
+      "require": "./build/three.cjs",
+      "types": [
+        "./types/index.d.ts",
+        "./types/examples/*/**"
+      ]
     },
     "./examples/fonts/*": "./examples/fonts/*",
     "./examples/jsm/*": "./examples/jsm/*",
