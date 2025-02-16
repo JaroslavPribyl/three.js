@@ -118,6 +118,11 @@ class Object3D extends EventDispatcher {
 
 		this.userData = {};
 
+		this.grlUserData = {
+			model: null,
+			particle: null
+		};
+
 	}
 
 	onBeforeShadow( /* renderer, object, camera, shadowCamera, geometry, depthMaterial, group */ ) {}
@@ -999,6 +1004,9 @@ class Object3D extends EventDispatcher {
 		this.animations = source.animations.slice();
 
 		this.userData = JSON.parse( JSON.stringify( source.userData ) );
+
+		this.grlUserData.model = source.grlUserData.model;
+		this.grlUserData.particle = source.grlUserData.particle;
 
 		if ( recursive === true ) {
 
