@@ -1,9 +1,9 @@
-import { Color } from './../math/Color';
-import { Texture } from './../textures/Texture';
-import { Vector2 } from './../math/Vector2';
-import { MaterialParameters, Material } from './Material';
-import { NormalMapTypes } from '../constants';
-import { ColorRepresentation } from '../utils';
+import { NormalMapTypes } from "../constants.js";
+import { Color, ColorRepresentation } from "../math/Color.js";
+import { Euler } from "../math/Euler.js";
+import { Vector2 } from "../math/Vector2.js";
+import { Texture } from "../textures/Texture.js";
+import { Material, MaterialParameters } from "./Material.js";
 
 export interface MeshStandardMaterialParameters extends MaterialParameters {
     color?: ColorRepresentation | undefined;
@@ -29,6 +29,7 @@ export interface MeshStandardMaterialParameters extends MaterialParameters {
     metalnessMap?: Texture | null | undefined;
     alphaMap?: Texture | null | undefined;
     envMap?: Texture | null | undefined;
+    envMapRotation?: Euler | undefined;
     envMapIntensity?: number | undefined;
     wireframe?: boolean | undefined;
     wireframeLinewidth?: number | undefined;
@@ -40,9 +41,11 @@ export class MeshStandardMaterial extends Material {
     constructor(parameters?: MeshStandardMaterialParameters);
 
     /**
-     * @default 'MeshStandardMaterial'
+     * Read-only flag to check if a given object is of type {@link MeshStandardMaterial}.
+     * @remarks This is a _constant_ value
+     * @defaultValue `true`
      */
-    type: string;
+    readonly isMeshStandardMaterial: true;
 
     /**
      * @default { 'STANDARD': '' }
@@ -165,6 +168,11 @@ export class MeshStandardMaterial extends Material {
     envMap: Texture | null;
 
     /**
+     * The rotation of the environment map in radians. Default is `(0,0,0)`.
+     */
+    envMapRotation: Euler;
+
+    /**
      * @default 1
      */
     envMapIntensity: number;
@@ -200,8 +208,6 @@ export class MeshStandardMaterial extends Material {
      * @default fog
      */
     fog: boolean;
-
-    isMeshStandardMaterial: boolean;
 
     setValues(parameters: MeshStandardMaterialParameters): void;
 }

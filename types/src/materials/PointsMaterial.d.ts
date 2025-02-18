@@ -1,7 +1,6 @@
-import { Material, MaterialParameters } from './Material';
-import { Color } from './../math/Color';
-import { Texture } from './../textures/Texture';
-import { ColorRepresentation } from '../utils';
+import { Color, ColorRepresentation } from "../math/Color.js";
+import { Texture } from "../textures/Texture.js";
+import { Material, MaterialParameters } from "./Material.js";
 
 export interface PointsMaterialParameters extends MaterialParameters {
     color?: ColorRepresentation | undefined;
@@ -16,9 +15,11 @@ export class PointsMaterial extends Material {
     constructor(parameters?: PointsMaterialParameters);
 
     /**
-     * @default 'PointsMaterial'
+     * Read-only flag to check if a given object is of type {@link PointsMaterial}.
+     * @remarks This is a _constant_ value
+     * @defaultValue `true`
      */
-    type: string;
+    readonly isPointsMaterial: true;
 
     /**
      * @default new THREE.Color( 0xffffff )

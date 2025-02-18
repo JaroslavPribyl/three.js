@@ -1,8 +1,9 @@
-import { Color } from './../math/Color';
-import { Texture } from './../textures/Texture';
-import { MaterialParameters, Material } from './Material';
-import { Combine } from '../constants';
-import { ColorRepresentation } from '../utils';
+import { Combine } from "../constants.js";
+import { Color, ColorRepresentation } from "../math/Color.js";
+import { Euler } from "../math/Euler.js";
+import { Texture } from "../textures/Texture.js";
+import { Material, MaterialParameters } from "./Material.js";
+
 /**
  * parameters is an object with one or more properties defining the material's appearance.
  */
@@ -18,6 +19,7 @@ export interface MeshBasicMaterialParameters extends MaterialParameters {
     alphaMap?: Texture | null | undefined;
     fog?: boolean | undefined;
     envMap?: Texture | null | undefined;
+    envMapRotation?: Euler | undefined;
     combine?: Combine | undefined;
     reflectivity?: number | undefined;
     refractionRatio?: number | undefined;
@@ -31,9 +33,11 @@ export class MeshBasicMaterial extends Material {
     constructor(parameters?: MeshBasicMaterialParameters);
 
     /**
-     * @default 'MeshBasicMaterial'
+     * Read-only flag to check if a given object is of type {@link MeshBasicMaterial}.
+     * @remarks This is a _constant_ value
+     * @defaultValue `true`
      */
-    type: string;
+    readonly isMeshBasicMaterial: true;
 
     /**
      * @default new THREE.Color( 0xffffff )
@@ -79,6 +83,11 @@ export class MeshBasicMaterial extends Material {
      * @default null
      */
     envMap: Texture | null;
+
+    /**
+     * The rotation of the environment map in radians. Default is `(0,0,0)`.
+     */
+    envMapRotation: Euler;
 
     /**
      * @default THREE.MultiplyOperation

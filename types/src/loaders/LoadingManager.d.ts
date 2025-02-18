@@ -1,4 +1,4 @@
-import { Loader } from './Loader';
+import { Loader } from "./Loader.js";
 
 export const DefaultLoadingManager: LoadingManager;
 
@@ -10,7 +10,7 @@ export class LoadingManager {
         onLoad?: () => void,
         onProgress?: (url: string, loaded: number, total: number) => void,
         onError?: (url: string) => void,
-        cache?: any,
+		cache?: any,
     );
 
     /**
