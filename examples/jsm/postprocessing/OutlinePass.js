@@ -25,13 +25,13 @@ class OutlinePass extends Pass {
 		this.renderScene = scene;
 		this.renderCamera = camera;
 		this.selectedObjects = selectedObjects !== undefined ? selectedObjects : [];
-		this.visibleEdgeColor = new Color( 1, 1, 1 );
-		this.hiddenEdgeColor = new Color( 0.1, 0.04, 0.02 );
+		this.visibleEdgeColor = new Color( 0.78, 0.27, 0.26 );
+		this.hiddenEdgeColor = new Color( 0.78, 0.27, 0.26 );
 		this.edgeGlow = 0.0;
 		this.usePatternTexture = false;
-		this.edgeThickness = 6.0;
-		this.edgeStrength = 6.0;
-		this.downSampleRatio = 1;
+		this.edgeThickness = 1.0;
+		this.edgeStrength = 3.0;
+		this.downSampleRatio = 2;
 		this.pulsePeriod = 0;
 
 		this._visibilityCache = new Map();
@@ -389,31 +389,26 @@ class OutlinePass extends Pass {
 			this.overlayMaterial.uniforms[ 'edgeStrength' ].value = this.edgeStrength;
 			this.overlayMaterial.uniforms[ 'edgeGlow' ].value = this.edgeGlow;
 			this.overlayMaterial.uniforms[ 'usePatternTexture' ].value = this.usePatternTexture;
-			this.overlayMaterial.uniforms[ 'visibleEdgeColor' ].value = this.visibleEdgeColor;
+
 
 			if ( maskActive ) renderer.state.buffers.stencil.setTest( true );
 
-			renderer.setRenderTarget( readBuffer );
+			renderer.setRenderTarget( null );
 			this.fsQuad.render( renderer );
 
 			renderer.setClearColor( this._oldClearColor, this.oldClearAlpha );
 			renderer.autoClear = oldAutoClear;
 
-			if ( this.renderToScreen ) {
-
-				this.fsQuad.material = this.materialCopy;
-				this.copyUniforms[ 'tDiffuse' ].value = readBuffer.texture;
-				renderer.setRenderTarget( null );
-				this.fsQuad.render( renderer );
-
-			} else {
-
-				renderer.setRenderTarget( readBuffer );
-				this.fsQuad.render( renderer );
-
-			}
-
 		}
+
+		/*if ( this.renderToScreen ) {
+
+			this.fsQuad.material = this.materialCopy;
+			this.copyUniforms[ 'tDiffuse' ].value = readBuffer.texture;
+			renderer.setRenderTarget( null );
+			this.fsQuad.render( renderer );
+
+		}*/
 
 	}
 
@@ -594,8 +589,7 @@ class OutlinePass extends Pass {
 				'patternTexture': { value: null },
 				'edgeStrength': { value: 1.0 },
 				'edgeGlow': { value: 1.0 },
-				'usePatternTexture': { value: 0.0 },
-				'visibleEdgeColor': { value: new Vector3( 1.0, 1.0, 1.0 ) }
+				'usePatternTexture': { value: 0.0 }
 			},
 
 			vertexShader:
@@ -616,7 +610,6 @@ class OutlinePass extends Pass {
 				uniform float edgeStrength;
 				uniform float edgeGlow;
 				uniform bool usePatternTexture;
-				uniform vec3 visibleEdgeColor;
 
 				void main() {
 					vec4 edgeValue1 = texture2D(edgeTexture1, vUv);
@@ -628,9 +621,7 @@ class OutlinePass extends Pass {
 					vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
 					if(usePatternTexture)
 						finalColor += + visibilityFactor * (1.0 - maskColor.r) * (1.0 - patternColor.r);
-					//gl_FragColor = finalColor;
-					gl_FragColor = vec4(visibleEdgeColor, 1.0);
-					gl_FragColor.a = (finalColor.r + finalColor.g + finalColor.b) * 10.0 / 3.0;
+					gl_FragColor = finalColor;
 				}`,
 			blending: NormalBlending,
 			depthTest: false,
