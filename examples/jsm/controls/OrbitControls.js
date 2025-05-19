@@ -1271,6 +1271,12 @@ function onPointerDown( event ) {
 
 	}
 
+	if ( this.controls ) {
+
+		this.controls.notifyUserInputHappen();
+
+	}
+
 }
 
 function onPointerMove( event ) {
@@ -1284,6 +1290,12 @@ function onPointerMove( event ) {
 	} else {
 
 		this._onMouseMove( event );
+
+	}
+
+	if ( this.controls ) {
+
+		this.controls.notifyUserInputHappen();
 
 	}
 
@@ -1320,6 +1332,11 @@ function onPointerUp( event ) {
 
 	}
 
+	if ( this.controls ) {
+
+		this.controls.notifyUserInputHappen();
+
+	}
 }
 
 function onMouseDown( event ) {
@@ -1555,6 +1572,11 @@ function onTouchStart( event ) {
 
 	}
 
+	if ( this.controls ) {
+
+		this.controls.notifyUserInputHappen();
+
+	}
 }
 
 function onTouchMove( event ) {
@@ -1606,6 +1628,12 @@ function onTouchMove( event ) {
 		default:
 
 			this.state = _STATE.NONE;
+
+	}
+
+	if ( this.controls ) {
+
+		this.controls.notifyUserInputHappen();
 
 	}
 
