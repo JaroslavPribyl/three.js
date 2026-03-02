@@ -321,6 +321,12 @@ class OrbitControls extends Controls {
 			this._spherical.theta += this._sphericalDelta.theta * this.dampingFactor;
 			this._spherical.phi += this._sphericalDelta.phi * this.dampingFactor;
 
+			if ( this.controls && ( this._sphericalDelta.theta > 0.0 || this._sphericalDelta.phi > 0.0 ) ) {
+
+				this.controls.notifyUserInputHappen( true );
+
+			}
+
 		} else {
 
 			this._spherical.theta += this._sphericalDelta.theta;
@@ -376,6 +382,12 @@ class OrbitControls extends Controls {
 
 			this.target.addScaledVector( this._panOffset, this.dampingFactor );
 
+			if ( this.controls && ( this._sphericalDelta.theta > 0.0 || this._sphericalDelta.phi > 0.0 ) ) {
+
+				this.controls.notifyUserInputHappen( true );
+
+			}
+
 		} else {
 
 			this.target.add( this._panOffset );
@@ -417,6 +429,12 @@ class OrbitControls extends Controls {
 			this._sphericalDelta.phi *= ( 1 - this.dampingFactor );
 
 			this._panOffset.multiplyScalar( 1 - this.dampingFactor );
+
+			if ( this.controls && ( this._sphericalDelta.theta > 0.0 || this._sphericalDelta.phi > 0.0 ) ) {
+
+				this.controls.notifyUserInputHappen( true );
+
+			}
 
 		} else {
 
@@ -712,6 +730,7 @@ class OrbitControls extends Controls {
 			this.controls.notifyUserInputHappen();
 
 		}
+
 	}
 
 	_handleMouseDownDolly( event ) {
@@ -724,6 +743,7 @@ class OrbitControls extends Controls {
 			this.controls.notifyUserInputHappen();
 
 		}
+
 	}
 
 	_handleMouseDownPan( event ) {
@@ -735,6 +755,7 @@ class OrbitControls extends Controls {
 			this.controls.notifyUserInputHappen();
 
 		}
+
 	}
 
 	_handleMouseMoveRotate( event ) {
@@ -1337,6 +1358,7 @@ function onPointerUp( event ) {
 		this.controls.notifyUserInputHappen();
 
 	}
+
 }
 
 function onMouseDown( event ) {
@@ -1577,6 +1599,7 @@ function onTouchStart( event ) {
 		this.controls.notifyUserInputHappen();
 
 	}
+
 }
 
 function onTouchMove( event ) {
