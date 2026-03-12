@@ -284,7 +284,7 @@ class VRTLoader extends Loader {
 			const drcDataLen = new Uint32Array( response.slice( fileCursor, fileCursor + 4 ) )[ 0 ];
 			fileCursor += 4;
 
-			const drcData = new Uint8Array( response.slice( fileCursor, fileCursor + drcDataLen ) );
+			const drcData = new Int8Array( response.slice( fileCursor, fileCursor + drcDataLen ) );
 			fileCursor += drcDataLen;
 
 			// geometry
