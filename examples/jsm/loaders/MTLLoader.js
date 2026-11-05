@@ -344,7 +344,9 @@ class MaterialCreator {
 		for ( var key in this.textureLoaders ) {
 
 			const loader = this.textureLoaders[ key ];
-			loader.image.src = '';
+			if (loader.image) {
+				loader.image.src = '';
+			}
 			loader.valid = false;
 
 		}
