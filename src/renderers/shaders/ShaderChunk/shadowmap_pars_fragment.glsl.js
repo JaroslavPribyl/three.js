@@ -281,6 +281,16 @@ export default /* glsl */`
             return (zReceiver - zBlocker) / zBlocker;
         }
 
+        // the shadow map is a DepthTexture without comparison (WebGLShadowMap, like BASIC), the depth is
+        // in its r channel (r173 packed it into RGBA with RGBADepthPacking); returns 0 near .. 1 far
+        float getShadowMapDepth( sampler2D shadowMap, const in vec2 uv ) {
+            float depth = texture2D( shadowMap, uv ).r;
+            #ifdef USE_REVERSED_DEPTH_BUFFER
+                depth = 1.0 - depth;
+            #endif
+            return depth;
+        }
+
         float findBlocker( sampler2D shadowMap, const in vec2 uv, const in float zReceiver ) {
             // This uses similar triangles to compute what
             // area of the shadow map we should search
@@ -291,7 +301,7 @@ export default /* glsl */`
 
             // original method
             for( int i = 0; i < BLOCKER_SEARCH_NUM_SAMPLES; i++ ) {
-                float shadowMapDepth = unpackRGBAToDepth(texture2D(shadowMap, uv + poissonDisk[i] * searchRadius));
+                float shadowMapDepth = getShadowMapDepth( shadowMap, uv + poissonDisk[i] * searchRadius );
                 if ( shadowMapDepth < zReceiver ) {
                     //blockerDepthSum += (1.0 - shadowMapDepth) / (zReceiver * zReceiver);
                     blockerDepthSum += 1.0 + log(1.0 - shadowMapDepth);
@@ -307,15 +317,61 @@ export default /* glsl */`
         float PCF_Filter(sampler2D shadowMap, vec2 uv, float zReceiver, float filterRadius ) {
             float sum = 0.0;
             for( int i = 0; i < PCF_NUM_SAMPLES; i ++ ) {
-                float depth = unpackRGBAToDepth( texture2D( shadowMap, uv + poissonDisk[ i ] * filterRadius ) );
+                float depth = getShadowMapDepth( shadowMap, uv + poissonDisk[ i ] * filterRadius );
                 if( zReceiver <= depth ) sum += 1.0;
             }
             for( int i = 0; i < PCF_NUM_SAMPLES; i ++ ) {
-                float depth = unpackRGBAToDepth( texture2D( shadowMap, uv + -poissonDisk[ i ].yx * filterRadius ) );
+                float depth = getShadowMapDepth( shadowMap, uv + -poissonDisk[ i ].yx * filterRadius );
                 if( zReceiver <= depth ) sum += 1.0;
             }
             return sum / ( 2.0 * float( PCF_NUM_SAMPLES ) );
         }
+
+        // PCSS of the pcss shadow example (r173): blocker search, penumbra size, filtering
+        float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+
+            float shadow = 1.0;
+
+            shadowCoord.xyz /= shadowCoord.w;
+
+            #ifdef USE_REVERSED_DEPTH_BUFFER
+
+                // the same 0 near .. 1 far depth as getShadowMapDepth
+                shadowCoord.z = 1.0 - shadowCoord.z;
+
+            #endif
+
+            shadowCoord.z += shadowBias;
+
+            bool inFrustum = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
+            bool frustumTest = inFrustum && shadowCoord.z <= 1.0;
+
+            if ( frustumTest ) {
+
+                vec2 uv = shadowCoord.xy;
+                float zReceiver = shadowCoord.z;
+
+                initPoissonSamples( uv );
+
+                // STEP 1: blocker search
+                float avgBlockerDepth = findBlocker( shadowMap, uv, zReceiver );
+
+                // there are no occluders so early out (this saves filtering)
+                if ( avgBlockerDepth == -1.0 ) return 1.0;
+
+                // STEP 2: penumbra size
+                float penumbraRatio = penumbraSize( zReceiver, avgBlockerDepth );
+                float filterRadius = penumbraRatio * light_size_uv * NEAR_PLANE / zReceiver;
+
+                // STEP 3: filtering
+                shadow = PCF_Filter( shadowMap, uv, zReceiver, filterRadius );
+
+            }
+
+            return mix( 1.0, shadow, shadowIntensity );
+
+        }
+
 	#else // SHADOWMAP_TYPE_BASIC
 
 		float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {

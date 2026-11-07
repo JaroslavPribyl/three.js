@@ -172,7 +172,6 @@ class MTLLoader extends Loader {
 			}
 			loader.setPriority( this.priority );
 			loader.setCache( this.cache );
-			loader.setPath( this.path );
 			loader.setRequestHeader( this.requestHeader );
 			loader.setWithCredentials( this.withCredentials );
 			loader.load( url, function ( text ) {
