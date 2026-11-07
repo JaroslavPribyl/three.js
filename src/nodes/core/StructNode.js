@@ -1,8 +1,7 @@
 import Node from './Node.js';
 import StructTypeNode from './StructTypeNode.js';
-import { nodeObject } from '../tsl/TSLCore.js';
-
-/** @module StructNode **/
+import { nodeObject, nodeProxyConstructor } from '../tsl/TSLCore.js';
+import { isArrayAsParameter } from './NodeUtils.js';
 
 /**
  * StructNode allows to create custom structures with multiple members.
@@ -32,26 +31,47 @@ class StructNode extends Node {
 
 	}
 
-	constructor( structLayoutNode, values ) {
+	constructor( structTypeNode, values ) {
 
 		super( 'vec3' );
 
-		this.structLayoutNode = structLayoutNode;
+		this.structTypeNode = structTypeNode;
 		this.values = values;
 
 		this.isStructNode = true;
 
 	}
 
-	getNodeType( builder ) {
+	isCacheable( /*builder*/ ) {
 
-		return this.structLayoutNode.getNodeType( builder );
+		return false;
+
+	}
+
+	generateNodeType( builder ) {
+
+		return this.structTypeNode.getNodeType( builder );
 
 	}
 
 	getMemberType( builder, name ) {
 
-		return this.structLayoutNode.getMemberType( builder, name );
+		return this.structTypeNode.getMemberType( builder, name );
+
+	}
+
+	_getChildren() {
+
+		// Ensure struct type is the last child for correct code generation order
+
+		const children = super._getChildren();
+
+		const structTypeProperty = children.find( child => child.childNode === this.structTypeNode );
+
+		children.splice( children.indexOf( structTypeProperty ), 1 );
+		children.push( structTypeProperty );
+
+		return children;
 
 	}
 
@@ -61,7 +81,7 @@ class StructNode extends Node {
 		const structType = nodeVar.type;
 		const propertyName = builder.getPropertyName( nodeVar );
 
-		builder.addLineFlowCode( `${ propertyName } = ${ builder.generateStruct( structType, this.structLayoutNode.membersLayout, this.values ) }`, this );
+		builder.addLineFlowCode( `${ propertyName } = ${ builder.generateStruct( structType, this.structTypeNode.membersLayout, this.values ) }`, this );
 
 		return nodeVar.name;
 
@@ -74,14 +94,15 @@ export default StructNode;
 /**
  * TSL function for creating a struct node.
  *
+ * @tsl
  * @function
  * @param {Object} membersLayout - The layout of the struct members.
- * @param {string} [name=null] - The name of the struct.
+ * @param {?string} [name=null] - The name of the struct.
  * @returns {Function} The struct function.
  */
 export const struct = ( membersLayout, name = null ) => {
 
-	const structLayout = new StructTypeNode( membersLayout, name );
+	const structType = new StructTypeNode( membersLayout, name );
 
 	const struct = ( ...params ) => {
 
@@ -89,7 +110,7 @@ export const struct = ( membersLayout, name = null ) => {
 
 		if ( params.length > 0 ) {
 
-			if ( params[ 0 ].isNode ) {
+			if ( isArrayAsParameter( params ) ) {
 
 				values = {};
 
@@ -97,7 +118,7 @@ export const struct = ( membersLayout, name = null ) => {
 
 				for ( let i = 0; i < params.length; i ++ ) {
 
-					values[ names[ i ] ] = params[ i ];
+					values[ names[ i ] ] = nodeObject( params[ i ] );
 
 				}
 
@@ -109,13 +130,10 @@ export const struct = ( membersLayout, name = null ) => {
 
 		}
 
-		return nodeObject( new StructNode( structLayout, values ) );
+		return new StructNode( structType, values );
 
 	};
 
-	struct.layout = structLayout;
-	struct.isStruct = true;
-
-	return struct;
+	return nodeProxyConstructor( struct, structType );
 
 };

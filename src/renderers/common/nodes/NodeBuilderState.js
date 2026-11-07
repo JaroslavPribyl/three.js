@@ -14,37 +14,38 @@ class NodeBuilderState {
 	/**
 	 * Constructs a new node builder state.
 	 *
-	 * @param {String?} vertexShader - The native vertex shader code.
-	 * @param {String?} fragmentShader - The native fragment shader code.
-	 * @param {String?} computeShader - The native compute shader code.
+	 * @param {string} vertexShader - The native vertex shader code.
+	 * @param {string} fragmentShader - The native fragment shader code.
+	 * @param {string} computeShader - The native compute shader code.
 	 * @param {Array<NodeAttribute>} nodeAttributes - An array of node attributes.
 	 * @param {Array<BindGroup>} bindings - An array of bind groups.
 	 * @param {Array<Node>} updateNodes - An array of nodes that implement their `update()` method.
 	 * @param {Array<Node>} updateBeforeNodes - An array of nodes that implement their `updateBefore()` method.
 	 * @param {Array<Node>} updateAfterNodes - An array of nodes that implement their `updateAfter()` method.
 	 * @param {NodeMaterialObserver} observer - A node material observer.
+	 * @param {boolean} hardwareClipping - Whether the built material uses hardware clipping or not.
 	 * @param {Array<Object>} transforms - An array with transform attribute objects. Only relevant when using compute shaders with WebGL 2.
 	 */
-	constructor( vertexShader, fragmentShader, computeShader, nodeAttributes, bindings, updateNodes, updateBeforeNodes, updateAfterNodes, observer, transforms = [] ) {
+	constructor( vertexShader, fragmentShader, computeShader, nodeAttributes, bindings, updateNodes, updateBeforeNodes, updateAfterNodes, observer, hardwareClipping, transforms = [] ) {
 
 		/**
 		 * The native vertex shader code.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 */
 		this.vertexShader = vertexShader;
 
 		/**
 		 * The native fragment shader code.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 */
 		this.fragmentShader = fragmentShader;
 
 		/**
 		 * The native compute shader code.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 */
 		this.computeShader = computeShader;
 
@@ -101,9 +102,16 @@ class NodeBuilderState {
 		this.observer = observer;
 
 		/**
+		 * Whether the built material uses hardware clipping or not.
+		 *
+		 * @type {boolean}
+		 */
+		this.hardwareClipping = hardwareClipping;
+
+		/**
 		 * How often this state is used by render objects.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 */
 		this.usedTimes = 0;
 
@@ -114,11 +122,13 @@ class NodeBuilderState {
 	 * on the existing bind groups of this state. Shared groups are
 	 * not cloned.
 	 *
+	 * @param {Bindings} bindings - Renderer component for managing bindings.
+	 * @param {RenderContext} renderContext - The render context.
 	 * @return {Array<BindGroup>} A array of bind groups.
 	 */
-	createBindings() {
+	createBindings( bindings, renderContext ) {
 
-		const bindings = [];
+		const bindGroups = [];
 
 		for ( const instanceGroup of this.bindings ) {
 
@@ -126,8 +136,8 @@ class NodeBuilderState {
 
 			if ( shared !== true ) {
 
-				const bindingsGroup = new BindGroup( instanceGroup.name, [], instanceGroup.index, instanceGroup );
-				bindings.push( bindingsGroup );
+				const bindingsGroup = new BindGroup( instanceGroup.name, [] );
+				bindGroups.push( bindingsGroup );
 
 				for ( const instanceBinding of instanceGroup.bindings ) {
 
@@ -137,13 +147,13 @@ class NodeBuilderState {
 
 			} else {
 
-				bindings.push( instanceGroup );
+				bindGroups.push( bindings.getSharedBindGroup( instanceGroup, renderContext ) );
 
 			}
 
 		}
 
-		return bindings;
+		return bindGroups;
 
 	}
 

@@ -4,6 +4,10 @@
 		<title>three.js misc - raycaster - helper</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<meta property="og:title" content="three.js misc - raycaster - helper">
+		<meta property="og:type" content="website">
+		<meta property="og:url" content="https://threejs.org/examples/misc_raycaster_helper.html">
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/misc_raycaster_helper.jpg">
 		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 	<body>
@@ -25,11 +29,11 @@
 
 		<script type="module">
 
-			import * as THREE from 'three';
+			import * as THREE from 'three/webgpu';
 			import { RaycasterHelper } from 'https://cdn.jsdelivr.net/npm/@gsimone/three-raycaster-helper@0.1.0/dist/gsimone-three-raycaster-helper.esm.js';
 
 			let scene, renderer;
-			let camera, clock;
+			let camera;
 
 			let capsule1, capsule2, capsule3;
 			let raycaster, raycasterHelper;
@@ -50,7 +54,7 @@
 				camera.position.z = 10;
 
 				scene = new THREE.Scene();
-				clock = new THREE.Clock();
+				scene.background = new THREE.Color( 0x000000 );
 
 				//
 
@@ -90,12 +94,14 @@
 
 			}
 
-			function animate() {
+			function animate( time ) {
+
+				const elapsedTime = time / 1000; // ms to s
 
 				[ capsule1, capsule2, capsule3 ].forEach( capsule => {
 
-					capsule.position.y = Math.sin( clock.getElapsedTime() * 0.5 + capsule.position.x );
-					capsule.rotation.z = Math.sin( clock.getElapsedTime() * 0.5 ) * Math.PI * 1;
+					capsule.position.y = Math.sin( elapsedTime * 0.5 + capsule.position.x );
+					capsule.rotation.z = Math.sin( elapsedTime * 0.5 ) * Math.PI * 1;
 
 				} );
 

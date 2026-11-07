@@ -1,6 +1,5 @@
 import Node from '../core/Node.js';
 import TextureNode from '../accessors/TextureNode.js';
-import { nodeObject } from '../tsl/TSLBase.js';
 import { NodeUpdateType } from '../core/constants.js';
 import { screenUV } from '../display/ScreenNode.js';
 
@@ -13,8 +12,7 @@ import { Vector4 } from '../../math/Vector4.js';
 import { Matrix4 } from '../../math/Matrix4.js';
 import { RenderTarget } from '../../core/RenderTarget.js';
 import { DepthTexture } from '../../textures/DepthTexture.js';
-
-/** @module ReflectorNode **/
+import { warnOnce } from '../../utils.js';
 
 const _reflectorPlane = new Plane();
 const _normal = new Vector3();
@@ -48,7 +46,7 @@ let _inReflector = false;
  * plane.add( groundReflector.target );
  * ```
  *
- * @augments module:TextureNode~TextureNode
+ * @augments TextureNode
  */
 class ReflectorNode extends TextureNode {
 
@@ -63,10 +61,11 @@ class ReflectorNode extends TextureNode {
 	 *
 	 * @param {Object} [parameters={}] - An object holding configuration parameters.
 	 * @param {Object3D} [parameters.target=new Object3D()] - The 3D object the reflector is linked to.
-	 * @param {Number} [parameters.resolution=1] - The resolution scale.
-	 * @param {Boolean} [parameters.generateMipmaps=false] - Whether mipmaps should be generated or not.
-	 * @param {Boolean} [parameters.bounces=true] - Whether reflectors can render other reflector nodes or not.
-	 * @param {Boolean} [parameters.depth=false] - Whether depth data should be generated or not.
+	 * @param {number} [parameters.resolutionScale=1] - The resolution scale.
+	 * @param {boolean} [parameters.generateMipmaps=false] - Whether mipmaps should be generated or not.
+	 * @param {boolean} [parameters.bounces=true] - Whether reflectors can render other reflector nodes or not.
+	 * @param {boolean} [parameters.depth=false] - Whether depth data should be generated or not.
+	 * @param {number} [parameters.samples] - Anti-Aliasing samples of the internal render-target.
 	 * @param {TextureNode} [parameters.defaultTexture] - The default texture node.
 	 * @param {ReflectorBaseNode} [parameters.reflector] - The reflector base node.
 	 */
@@ -78,8 +77,8 @@ class ReflectorNode extends TextureNode {
 		 * A reference to the internal reflector base node which holds the actual implementation.
 		 *
 		 * @private
-		 * @type {ReflectorBaseNode?}
-		 * @default null
+		 * @type {ReflectorBaseNode}
+		 * @default ReflectorBaseNode
 		 */
 		this._reflectorBaseNode = parameters.reflector || new ReflectorBaseNode( this, parameters );
 
@@ -87,7 +86,7 @@ class ReflectorNode extends TextureNode {
 		 * A reference to the internal depth node.
 		 *
 		 * @private
-		 * @type {Node?}
+		 * @type {?Node}
 		 * @default null
 		 */
 		this._depthNode = null;
@@ -134,10 +133,10 @@ class ReflectorNode extends TextureNode {
 
 			}
 
-			this._depthNode = nodeObject( new ReflectorNode( {
+			this._depthNode = new ReflectorNode( {
 				defaultTexture: _defaultRT.depthTexture,
 				reflector: this._reflectorBaseNode
-			} ) );
+			} );
 
 		}
 
@@ -156,20 +155,44 @@ class ReflectorNode extends TextureNode {
 
 	clone() {
 
-		const texture = new this.constructor( this.reflectorNode );
-		texture._reflectorBaseNode = this._reflectorBaseNode;
+		const newNode = new this.constructor( this.reflectorNode );
+		newNode.uvNode = this.uvNode;
+		newNode.levelNode = this.levelNode;
+		newNode.biasNode = this.biasNode;
+		newNode.sampler = this.sampler;
+		newNode.depthNode = this.depthNode;
+		newNode.compareNode = this.compareNode;
+		newNode.gradNode = this.gradNode;
+		newNode.gatherNode = this.gatherNode;
+		newNode.offsetNode = this.offsetNode;
+		newNode._reflectorBaseNode = this._reflectorBaseNode;
 
-		return texture;
+		return newNode;
+
+	}
+
+	/**
+	 * Frees internal resources. Should be called when the node is no longer in use.
+	 */
+	dispose() {
+
+		super.dispose();
+
+		this._reflectorBaseNode.dispose();
 
 	}
 
 }
 
 /**
- * Holds the actual implementation of the reflector.
+ * Holds the actual implementation of the reflector (virtual cameras, render
+ * targets and the reflection rendering).
  *
- * TODO: Explain why `ReflectorBaseNode`. Originally the entire logic was implemented
- * in `ReflectorNode`, see #29619.
+ * This logic is kept separate from {@link ReflectorNode} because the latter is
+ * a {@link TextureNode} representing a single texture view. A reflector can be
+ * sampled by multiple texture nodes at once - e.g. one for color and one for
+ * depth (see {@link ReflectorNode#getDepthNode}) - which all reference the same
+ * base node so the reflection is rendered only once.
  *
  * @private
  * @augments Node
@@ -188,10 +211,11 @@ class ReflectorBaseNode extends Node {
 	 * @param {TextureNode} textureNode - Represents the rendered reflections as a texture node.
 	 * @param {Object} [parameters={}] - An object holding configuration parameters.
 	 * @param {Object3D} [parameters.target=new Object3D()] - The 3D object the reflector is linked to.
-	 * @param {Number} [parameters.resolution=1] - The resolution scale.
-	 * @param {Boolean} [parameters.generateMipmaps=false] - Whether mipmaps should be generated or not.
-	 * @param {Boolean} [parameters.bounces=true] - Whether reflectors can render other reflector nodes or not.
-	 * @param {Boolean} [parameters.depth=false] - Whether depth data should be generated or not.
+	 * @param {number} [parameters.resolutionScale=1] - The resolution scale.
+	 * @param {boolean} [parameters.generateMipmaps=false] - Whether mipmaps should be generated or not.
+	 * @param {boolean} [parameters.bounces=true] - Whether reflectors can render other reflector nodes or not.
+	 * @param {boolean} [parameters.depth=false] - Whether depth data should be generated or not.
+	 * @param {number} [parameters.samples] - Anti-Aliasing samples of the internal render-target.
 	 */
 	constructor( textureNode, parameters = {} ) {
 
@@ -199,10 +223,11 @@ class ReflectorBaseNode extends Node {
 
 		const {
 			target = new Object3D(),
-			resolution = 1,
+			resolutionScale = 1,
 			generateMipmaps = false,
 			bounces = true,
-			depth = false
+			depth = false,
+			samples = 0
 		} = parameters;
 
 		/**
@@ -223,15 +248,23 @@ class ReflectorBaseNode extends Node {
 		/**
 		 * The resolution scale.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 * @default {1}
 		 */
-		this.resolution = resolution;
+		this.resolutionScale = resolutionScale;
+
+		if ( parameters.resolution !== undefined ) {
+
+			warnOnce( 'ReflectorNode: The "resolution" parameter has been renamed to "resolutionScale".' ); // @deprecated r180
+
+			this.resolutionScale = parameters.resolution;
+
+		}
 
 		/**
 		 * Whether mipmaps should be generated or not.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default {false}
 		 */
 		this.generateMipmaps = generateMipmaps;
@@ -239,7 +272,7 @@ class ReflectorBaseNode extends Node {
 		/**
 		 * Whether reflectors can render other reflector nodes or not.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default {true}
 		 */
 		this.bounces = bounces;
@@ -247,16 +280,24 @@ class ReflectorBaseNode extends Node {
 		/**
 		 * Whether depth data should be generated or not.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default {false}
 		 */
 		this.depth = depth;
 
 		/**
+		 * The number of anti-aliasing samples for the render-target
+		 *
+		 * @type {number}
+		 * @default {0}
+		 */
+		this.samples = samples;
+
+		/**
 		 * The `updateBeforeType` is set to `NodeUpdateType.RENDER` when {@link ReflectorBaseNode#bounces}
 		 * is `true`. Otherwise it's `NodeUpdateType.FRAME`.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default 'render'
 		 */
 		this.updateBeforeType = bounces ? NodeUpdateType.RENDER : NodeUpdateType.FRAME;
@@ -271,9 +312,34 @@ class ReflectorBaseNode extends Node {
 		/**
 		 * Weak map for managing render targets.
 		 *
-		 * @type {WeakMap<Camera, RenderTarget>}
+		 * @type {Map<Camera, RenderTarget>}
 		 */
-		this.renderTargets = new WeakMap();
+		this.renderTargets = new Map();
+
+		/**
+		 * Force render even if reflector is facing away from camera.
+		 *
+		 * @type {boolean}
+		 * @default {false}
+		 */
+		this.forceUpdate = false;
+
+		/**
+		 * Whether the reflector has been rendered or not.
+		 *
+		 * When the reflector is facing away from the camera,
+		 * this flag is set to `false` and the texture will be empty(black).
+		 *
+		 * @type {boolean}
+		 * @default {false}
+		 */
+		this.hasOutput = false;
+
+	}
+
+	isCacheable( /*builder*/ ) {
+
+		return false;
 
 	}
 
@@ -286,7 +352,7 @@ class ReflectorBaseNode extends Node {
 	 */
 	_updateResolution( renderTarget, renderer ) {
 
-		const resolution = this.resolution;
+		const resolution = this.resolutionScale;
 
 		renderer.getDrawingBufferSize( _size );
 
@@ -299,6 +365,21 @@ class ReflectorBaseNode extends Node {
 		this._updateResolution( _defaultRT, builder.renderer );
 
 		return super.setup( builder );
+
+	}
+
+	/**
+	 * Frees internal resources. Should be called when the node is no longer in use.
+	 */
+	dispose() {
+
+		super.dispose();
+
+		for ( const renderTarget of this.renderTargets.values() ) {
+
+			renderTarget.dispose();
+
+		}
 
 	}
 
@@ -338,7 +419,7 @@ class ReflectorBaseNode extends Node {
 
 		if ( renderTarget === undefined ) {
 
-			renderTarget = new RenderTarget( 0, 0, { type: HalfFloatType } );
+			renderTarget = new RenderTarget( 1, 1, { type: HalfFloatType, samples: this.samples } );
 
 			if ( this.generateMipmaps === true ) {
 
@@ -358,6 +439,19 @@ class ReflectorBaseNode extends Node {
 		}
 
 		return renderTarget;
+
+	}
+
+	/**
+	 * Uses the virtual camera of the current camera as the update reference so
+	 * the reflection is updated for each camera that renders the reflector.
+	 *
+	 * @param {(NodeFrame|NodeBuilder)} state - The current state.
+	 * @return {Camera} The virtual camera.
+	 */
+	updateReference( state ) {
+
+		return this.getVirtualCamera( state.camera );
 
 	}
 
@@ -389,9 +483,24 @@ class ReflectorBaseNode extends Node {
 
 		_view.subVectors( _reflectorWorldPosition, _cameraWorldPosition );
 
-		// Avoid rendering when reflector is facing away
+		// Avoid rendering when reflector is facing away unless forcing an update
+		const isFacingAway = _view.dot( _normal ) > 0;
 
-		if ( _view.dot( _normal ) > 0 ) return;
+		let needsClear = false;
+
+		if ( isFacingAway === true && this.forceUpdate === false ) {
+
+			if ( this.hasOutput === false ) {
+
+				_inReflector = false;
+
+				return;
+
+			}
+
+			needsClear = true;
+
+		}
 
 		_view.reflect( _normal ).negate();
 		_view.add( _reflectorWorldPosition );
@@ -420,6 +529,11 @@ class ReflectorBaseNode extends Node {
 
 		virtualCamera.updateMatrixWorld();
 		virtualCamera.projectionMatrix.copy( camera.projectionMatrix );
+
+		// The reflection is mirrored horizontally, so the view offset must be mirrored as well.
+
+		virtualCamera.projectionMatrix.elements[ 8 ] *= - 1;
+		virtualCamera.projectionMatrix.elements[ 12 ] *= - 1;
 
 		// Now update projection matrix with new clip plane, implementing code from: http://www.terathon.com/code/oblique.html
 		// Paper explaining this technique: http://www.terathon.com/lengyel/Lengyel-Oblique.pdf
@@ -466,7 +580,25 @@ class ReflectorBaseNode extends Node {
 		renderer.setRenderTarget( renderTarget );
 		renderer.autoClear = true;
 
-		renderer.render( scene, virtualCamera );
+		const previousName = scene.name;
+
+		scene.name = ( scene.name || 'Scene' ) + ' [ Reflector ]'; // TODO: Add bounce index
+
+		if ( needsClear ) {
+
+			renderer.clear();
+
+			this.hasOutput = false;
+
+		} else {
+
+			renderer.render( scene, virtualCamera );
+
+			this.hasOutput = true;
+
+		}
+
+		scene.name = previousName;
 
 		renderer.setMRT( currentMRT );
 		renderer.setRenderTarget( currentRenderTarget );
@@ -476,6 +608,31 @@ class ReflectorBaseNode extends Node {
 
 		_inReflector = false;
 
+		this.forceUpdate = false;
+
+	}
+
+	/**
+	 * The resolution scale.
+	 *
+	 * @deprecated
+	 * @type {number}
+	 * @default {1}
+	 */
+	get resolution() {
+
+		warnOnce( 'ReflectorNode: The "resolution" property has been renamed to "resolutionScale".' ); // @deprecated r180
+
+		return this.resolutionScale;
+
+	}
+
+	set resolution( value ) {
+
+		warnOnce( 'ReflectorNode: The "resolution" property has been renamed to "resolutionScale".' ); // @deprecated r180
+
+		this.resolutionScale = value;
+
 	}
 
 }
@@ -483,17 +640,19 @@ class ReflectorBaseNode extends Node {
 /**
  * TSL function for creating a reflector node.
  *
+ * @tsl
  * @function
  * @param {Object} [parameters={}] - An object holding configuration parameters.
  * @param {Object3D} [parameters.target=new Object3D()] - The 3D object the reflector is linked to.
- * @param {Number} [parameters.resolution=1] - The resolution scale.
- * @param {Boolean} [parameters.generateMipmaps=false] - Whether mipmaps should be generated or not.
- * @param {Boolean} [parameters.bounces=true] - Whether reflectors can render other reflector nodes or not.
- * @param {Boolean} [parameters.depth=false] - Whether depth data should be generated or not.
+ * @param {number} [parameters.resolution=1] - The resolution scale.
+ * @param {boolean} [parameters.generateMipmaps=false] - Whether mipmaps should be generated or not.
+ * @param {boolean} [parameters.bounces=true] - Whether reflectors can render other reflector nodes or not.
+ * @param {boolean} [parameters.depth=false] - Whether depth data should be generated or not.
+ * @param {number} [parameters.samples] - Anti-Aliasing samples of the internal render-target.
  * @param {TextureNode} [parameters.defaultTexture] - The default texture node.
  * @param {ReflectorBaseNode} [parameters.reflector] - The reflector base node.
  * @returns {ReflectorNode}
  */
-export const reflector = ( parameters ) => nodeObject( new ReflectorNode( parameters ) );
+export const reflector = ( parameters ) => new ReflectorNode( parameters );
 
 export default ReflectorNode;

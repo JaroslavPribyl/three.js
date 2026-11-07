@@ -18,8 +18,8 @@ class ConstNode extends InputNode {
 	/**
 	 * Constructs a new input node.
 	 *
-	 * @param {Any} value - The value of this node. Usually a JS primitive or three.js object (vector, matrix, color).
-	 * @param {String?} nodeType - The node type. If no explicit type is defined, the node tries to derive the type from its value.
+	 * @param {any} value - The value of this node. Usually a JS primitive or three.js object (vector, matrix, color).
+	 * @param {?string} nodeType - The node type. If no explicit type is defined, the node tries to derive the type from its value.
 	 */
 	constructor( value, nodeType = null ) {
 
@@ -28,11 +28,19 @@ class ConstNode extends InputNode {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
 		this.isConstNode = true;
+
+		/**
+		 * Whether this constant is an implicit number whose type can adapt to other operands.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.isWeak = false;
 
 	}
 
@@ -40,7 +48,7 @@ class ConstNode extends InputNode {
 	 * Generates the shader string of the value with the current node builder.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The generated value as a shader string.
+	 * @return {string} The generated value as a shader string.
 	 */
 	generateConst( builder ) {
 
@@ -54,11 +62,33 @@ class ConstNode extends InputNode {
 
 		if ( _regNum.test( type ) && _regNum.test( output ) ) {
 
-			return builder.generateConst( output, this.value );
+			let value = this.value;
+
+			// Preserve the declared integer value before converting to the output type.
+			if ( type === 'int' ) value = Math.trunc( value );
+			else if ( type === 'uint' ) value = value >= 0 ? Math.trunc( value ) : 0;
+
+			return builder.generateConst( output, value );
 
 		}
 
 		return builder.format( this.generateConst( builder ), type, output );
+
+	}
+
+	serialize( data ) {
+
+		super.serialize( data );
+
+		data.isWeak = this.isWeak;
+
+	}
+
+	deserialize( data ) {
+
+		super.deserialize( data );
+
+		this.isWeak = data.isWeak === true;
 
 	}
 

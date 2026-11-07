@@ -14,11 +14,35 @@ class ChainMap {
 	constructor() {
 
 		/**
-		 * The root Weak Map.
+		 * A map of Weak Maps by their key length.
 		 *
-		 * @type {WeakMap}
+		 * @type {Object<number, WeakMap>}
 		 */
-		this.weakMap = new WeakMap();
+		this.weakMaps = {};
+
+
+	}
+
+	/**
+	 * Returns the Weak Map for the given keys.
+	 *
+	 * @param {Array<Object>} keys - List of keys.
+	 * @return {WeakMap} The weak map.
+	 */
+	_getWeakMap( keys ) {
+
+		const length = keys.length;
+
+		let weakMap = this.weakMaps[ length ];
+
+		if ( weakMap === undefined ) {
+
+			weakMap = new WeakMap();
+			this.weakMaps[ length ] = weakMap;
+
+		}
+
+		return weakMap;
 
 	}
 
@@ -26,11 +50,11 @@ class ChainMap {
 	 * Returns the value for the given array of keys.
 	 *
 	 * @param {Array<Object>} keys - List of keys.
-	 * @return {Any} The value. Returns `undefined` if no value was found.
+	 * @return {any} The value. Returns `undefined` if no value was found.
 	 */
 	get( keys ) {
 
-		let map = this.weakMap;
+		let map = this._getWeakMap( keys );
 
 		for ( let i = 0; i < keys.length - 1; i ++ ) {
 
@@ -48,12 +72,12 @@ class ChainMap {
 	 * Sets the value for the given keys.
 	 *
 	 * @param {Array<Object>} keys - List of keys.
-	 * @param {Any} value - The value to set.
+	 * @param {any} value - The value to set.
 	 * @return {ChainMap} A reference to this Chain Map.
 	 */
 	set( keys, value ) {
 
-		let map = this.weakMap;
+		let map = this._getWeakMap( keys );
 
 		for ( let i = 0; i < keys.length - 1; i ++ ) {
 
@@ -75,11 +99,11 @@ class ChainMap {
 	 * Deletes a value for the given keys.
 	 *
 	 * @param {Array<Object>} keys - The keys.
-	 * @return {Boolean} Returns `true` if the value has been removed successfully and `false` if the value has not be found.
+	 * @return {boolean} Returns `true` if the value has been removed successfully and `false` if the value has not be found.
 	 */
 	delete( keys ) {
 
-		let map = this.weakMap;
+		let map = this._getWeakMap( keys );
 
 		for ( let i = 0; i < keys.length - 1; i ++ ) {
 

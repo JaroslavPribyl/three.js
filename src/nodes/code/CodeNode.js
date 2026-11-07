@@ -1,8 +1,6 @@
 import Node from '../core/Node.js';
 import { nodeProxy } from '../tsl/TSLBase.js';
 
-/** @module CodeNode **/
-
 /**
  * This class represents native code sections. It is the base
  * class for modules like {@link FunctionNode} which allows to implement
@@ -21,7 +19,7 @@ class CodeNode extends Node {
 	/**
 	 * Constructs a new code node.
 	 *
-	 * @param {String} [code=''] - The native code.
+	 * @param {string} [code=''] - The native code.
 	 * @param {Array<Node>} [includes=[]] - An array of includes.
 	 * @param {('js'|'wgsl'|'glsl')} [language=''] - The used language.
 	 */
@@ -32,16 +30,24 @@ class CodeNode extends Node {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
 		this.isCodeNode = true;
 
 		/**
+		 * This flag is used for global cache.
+		 *
+		 * @type {boolean}
+		 * @default true
+		 */
+		this.global = true;
+
+		/**
 		 * The native code.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default ''
 		 */
 		this.code = code;
@@ -64,14 +70,9 @@ class CodeNode extends Node {
 
 	}
 
-	/**
-	 * The method is overwritten so it always returns `true`.
-	 *
-	 * @return {Boolean} Whether this node is global or not.
-	 */
-	isGlobal() {
+	isCacheable( /*builder*/ ) {
 
-		return true;
+		return false;
 
 	}
 
@@ -107,7 +108,7 @@ class CodeNode extends Node {
 
 		for ( const include of includes ) {
 
-			include.build( builder );
+			include.build( builder, 'void' );
 
 		}
 
@@ -143,19 +144,21 @@ export default CodeNode;
 /**
  * TSL function for creating a code node.
  *
+ * @tsl
  * @function
- * @param {String} [code=''] - The native code.
- * @param {Array<Node>} [includes=[]] - An array of includes.
- * @param {('js'|'wgsl'|'glsl')} [language=''] - The used language.
+ * @param {string} [code] - The native code.
+ * @param {?Array<Node>} [includes=[]] - An array of includes.
+ * @param {?('js'|'wgsl'|'glsl')} [language=''] - The used language.
  * @returns {CodeNode}
  */
-export const code = /*@__PURE__*/ nodeProxy( CodeNode );
+export const code = /*@__PURE__*/ nodeProxy( CodeNode ).setParameterLength( 1, 3 );
 
 /**
  * TSL function for creating a JS code node.
  *
+ * @tsl
  * @function
- * @param {String} src - The native code.
+ * @param {string} src - The native code.
  * @param {Array<Node>} includes - An array of includes.
  * @returns {CodeNode}
  */
@@ -164,8 +167,9 @@ export const js = ( src, includes ) => code( src, includes, 'js' );
 /**
  * TSL function for creating a WGSL code node.
  *
+ * @tsl
  * @function
- * @param {String} src - The native code.
+ * @param {string} src - The native code.
  * @param {Array<Node>} includes - An array of includes.
  * @returns {CodeNode}
  */
@@ -174,8 +178,9 @@ export const wgsl = ( src, includes ) => code( src, includes, 'wgsl' );
 /**
  * TSL function for creating a GLSL code node.
  *
+ * @tsl
  * @function
- * @param {String} src - The native code.
+ * @param {string} src - The native code.
  * @param {Array<Node>} includes - An array of includes.
  * @returns {CodeNode}
  */

@@ -1,8 +1,7 @@
 import Node from './Node.js';
 import { NodeShaderStage } from './constants.js';
 import { addMethodChaining, nodeProxy } from '../tsl/TSLCore.js';
-
-/** @module VaryingNode **/
+import { subBuild } from './SubBuildNode.js';
 
 /**
  * Class for representing shader varyings as nodes. Varyings are create from
@@ -26,7 +25,7 @@ class VaryingNode extends Node {
 	 * Constructs a new varying node.
 	 *
 	 * @param {Node} node - The node for which a varying should be created.
-	 * @param {String?} name - The name of the varying in the shader.
+	 * @param {?string} name - The name of the varying in the shader.
 	 */
 	constructor( node, name = null ) {
 
@@ -37,13 +36,13 @@ class VaryingNode extends Node {
 		 *
 		 * @type {Node}
 		 */
-		this.node = node;
+		this.node = subBuild( node, 'VERTEX' );
 
 		/**
 		 * The name of the varying in the shader. If no name is defined,
 		 * the node system auto-generates one.
 		 *
-		 * @type {String?}
+		 * @type {?string}
 		 * @default null
 		 */
 		this.name = name;
@@ -51,23 +50,57 @@ class VaryingNode extends Node {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
 		this.isVaryingNode = true;
 
+		/**
+		 * The interpolation type of the varying data.
+		 *
+		 * @type {?string}
+		 * @default null
+		 */
+		this.interpolationType = null;
+
+		/**
+		 * The interpolation sampling type of varying data.
+		 *
+		 * @type {?string}
+		 * @default null
+		 */
+		this.interpolationSampling = null;
+
+		/**
+		 * This flag is used for global cache.
+		 *
+		 * @type {boolean}
+		 * @default true
+		 */
+		this.global = true;
+
+	}
+
+	isCacheable( /*builder*/ ) {
+
+		return false;
+
 	}
 
 	/**
-	 * The method is overwritten so it always returns `true`.
+	 * Defines the interpolation type of the varying.
 	 *
-	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {Boolean} Whether this node is global or not.
+	 * @param {string} type - The interpolation type.
+	 * @param {?string} sampling - The interpolation sampling type
+	 * @return {VaryingNode} A reference to this node.
 	 */
-	isGlobal( /*builder*/ ) {
+	setInterpolation( type, sampling = null ) {
 
-		return true;
+		this.interpolationType = type;
+		this.interpolationSampling = sampling;
+
+		return this;
 
 	}
 
@@ -77,7 +110,7 @@ class VaryingNode extends Node {
 
 	}
 
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
 		// VaryingNode is auto type
 
@@ -101,9 +134,11 @@ class VaryingNode extends Node {
 
 			const name = this.name;
 			const type = this.getNodeType( builder );
+			const interpolationType = this.interpolationType;
+			const interpolationSampling = this.interpolationSampling;
 
-			properties.varying = varying = builder.getVaryingFromNode( this, name, type );
-			properties.node = this.node;
+			properties.varying = varying = builder.getVaryingFromNode( this, name, type, interpolationType, interpolationSampling );
+			properties.node = subBuild( this.node, 'VERTEX' );
 
 		}
 
@@ -116,45 +151,70 @@ class VaryingNode extends Node {
 
 	setup( builder ) {
 
+		// the context can evaluate varyings directly in the fragment stage, e.g. if the surface is reconstructed per fragment.
+		// indices and attributes create their own varyings in the fragment stage, so their varyings are kept unless the
+		// context provides the attribute
+
+		if ( builder.context.inlineVaryings === true && builder.shaderStage === 'fragment' ) {
+
+			let node = this.node;
+
+			while ( node.isSubBuildNode === true ) node = node.node;
+
+			if ( node.isIndexNode !== true && ( node.isAttributeNode !== true || node.getContextAttribute( builder ) ) ) return this.node;
+
+		}
+
 		this.setupVarying( builder );
+
+		builder.flowNodeFromShaderStage( NodeShaderStage.VERTEX, this.node );
 
 	}
 
 	analyze( builder ) {
 
+		// TODO: Node.build() could pass through the output node of setup() directly, so overrides of analyze() and generate() don't need to handle it twice
+
+		if ( builder.getNodeProperties( this ).outputNode ) return super.analyze( builder );
+
 		this.setupVarying( builder );
 
-		return this.node.analyze( builder );
+		builder.flowNodeFromShaderStage( NodeShaderStage.VERTEX, this.node );
 
 	}
 
 	generate( builder ) {
 
+		const { outputNode } = builder.getNodeProperties( this );
+
+		if ( outputNode ) return outputNode.build( builder, this.getNodeType( builder ) );
+
+		const propertyKey = builder.getSubBuildProperty( 'property', builder.currentStack );
 		const properties = builder.getNodeProperties( this );
 		const varying = this.setupVarying( builder );
 
-		const needsReassign = builder.shaderStage === 'fragment' && properties.reassignPosition === true && builder.context.needsPositionReassign;
+		// The vertex assignment is emitted once per block, from the fragment stage it is emitted outside of any block.
+		const flowBlock = builder.shaderStage === NodeShaderStage.VERTEX ? builder.flowBlock : null;
 
-		if ( properties.propertyName === undefined || needsReassign ) {
+		if ( properties[ propertyKey ] !== flowBlock ) {
 
 			const type = this.getNodeType( builder );
 			const propertyName = builder.getPropertyName( varying, NodeShaderStage.VERTEX );
 
-			// force node run in vertex stage
-			builder.flowNodeFromShaderStage( NodeShaderStage.VERTEX, this.node, type, propertyName );
+			if ( builder.shaderStage === NodeShaderStage.VERTEX ) {
 
-			properties.propertyName = propertyName;
+				const snippet = properties.node.build( builder, type );
 
-			if ( needsReassign ) {
+				builder.addLineFlowCode( `${ propertyName } = ${ snippet }`, this );
 
-				// once reassign varying in fragment stage
-				properties.reassignPosition = false;
+			} else {
 
-			} else if ( properties.reassignPosition === undefined && builder.context.isPositionNodeInput ) {
-
-				properties.reassignPosition = true;
+				// force node run in vertex stage
+				builder.flowNodeFromShaderStage( NodeShaderStage.VERTEX, properties.node, type, propertyName );
 
 			}
+
+			properties[ propertyKey ] = flowBlock;
 
 		}
 
@@ -169,16 +229,18 @@ export default VaryingNode;
 /**
  * TSL function for creating a varying node.
  *
+ * @tsl
  * @function
  * @param {Node} node - The node for which a varying should be created.
- * @param {String?} name - The name of the varying in the shader.
+ * @param {?string} name - The name of the varying in the shader.
  * @returns {VaryingNode}
  */
-export const varying = /*@__PURE__*/ nodeProxy( VaryingNode );
+export const varying = /*@__PURE__*/ nodeProxy( VaryingNode ).setParameterLength( 1, 2 );
 
 /**
  * Computes a node in the vertex stage.
  *
+ * @tsl
  * @function
  * @param {Node} node - The node which should be executed in the vertex stage.
  * @returns {VaryingNode}
@@ -187,19 +249,3 @@ export const vertexStage = ( node ) => varying( node );
 
 addMethodChaining( 'toVarying', varying );
 addMethodChaining( 'toVertexStage', vertexStage );
-
-// Deprecated
-
-addMethodChaining( 'varying', ( ...params ) => { // @deprecated, r173
-
-	console.warn( 'TSL.VaryingNode: .varying() has been renamed to .toVarying().' );
-	return varying( ...params );
-
-} );
-
-addMethodChaining( 'vertexStage', ( ...params ) => { // @deprecated, r173
-
-	console.warn( 'TSL.VaryingNode: .vertexStage() has been renamed to .toVertexStage().' );
-	return varying( ...params );
-
-} );

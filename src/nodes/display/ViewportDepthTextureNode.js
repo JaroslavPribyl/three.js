@@ -4,16 +4,14 @@ import { screenUV } from './ScreenNode.js';
 
 import { DepthTexture } from '../../textures/DepthTexture.js';
 
-/** @module ViewportDepthTextureNode **/
-
-let sharedDepthbuffer = null;
+let _sharedDepthbuffer = null;
 
 /**
  * Represents the depth of the current viewport as a texture. This module
  * can be used in combination with viewport texture to achieve effects
  * that require depth evaluation.
  *
- * @augments module:ViewportTextureNode~ViewportTextureNode
+ * @augments ViewportTextureNode
  */
 class ViewportDepthTextureNode extends ViewportTextureNode {
 
@@ -27,17 +25,24 @@ class ViewportDepthTextureNode extends ViewportTextureNode {
 	 * Constructs a new viewport depth texture node.
 	 *
 	 * @param {Node} [uvNode=screenUV] - The uv node.
-	 * @param {Node?} [levelNode=null] - The level node.
+	 * @param {?Node} [levelNode=null] - The level node.
+	 * @param {?DepthTexture} [depthTexture=null] - A depth texture. If not provided, uses a shared depth texture.
 	 */
-	constructor( uvNode = screenUV, levelNode = null ) {
+	constructor( uvNode = screenUV, levelNode = null, depthTexture = null ) {
 
-		if ( sharedDepthbuffer === null ) {
+		if ( depthTexture === null ) {
 
-			sharedDepthbuffer = new DepthTexture();
+			if ( _sharedDepthbuffer === null ) {
+
+				_sharedDepthbuffer = new DepthTexture();
+
+			}
+
+			depthTexture = _sharedDepthbuffer;
 
 		}
 
-		super( uvNode, levelNode, sharedDepthbuffer );
+		super( uvNode, levelNode, depthTexture );
 
 	}
 
@@ -48,9 +53,11 @@ export default ViewportDepthTextureNode;
 /**
  * TSL function for a viewport depth texture node.
  *
+ * @tsl
  * @function
- * @param {Node} [uvNode=screenUV] - The uv node.
- * @param {Node?} [levelNode=null] - The level node.
+ * @param {?Node} [uvNode=screenUV] - The uv node.
+ * @param {?Node} [levelNode=null] - The level node.
+ * @param {?DepthTexture} [depthTexture=null] - A depth texture. If not provided, a depth texture is created automatically.
  * @returns {ViewportDepthTextureNode}
  */
-export const viewportDepthTexture = /*@__PURE__*/ nodeProxy( ViewportDepthTextureNode );
+export const viewportDepthTexture = /*@__PURE__*/ nodeProxy( ViewportDepthTextureNode ).setParameterLength( 0, 3 );

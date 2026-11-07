@@ -5,35 +5,58 @@ import {
 	Vector3,
 	NodeMaterial,
 	NodeUpdateType,
-	TempNode
+	Node
 } from 'three/webgpu';
 
 import { Fn, vec2, viewportSafeUV, viewportSharedTexture, reflector, pow, float, abs, texture, uniform, vec4, cameraPosition, positionWorld, uv, mix, vec3, normalize, max, dot, screenUV } from 'three/tsl';
 
-/**
- * References:
- *	https://alex.vlachos.com/graphics/Vlachos-SIGGRAPH10-WaterFlow.pdf
- *	http://graphicsrunner.blogspot.de/2010/08/water-using-flow-maps.html
- *
- */
+/** @module Water2Mesh */
 
+/**
+ * An advanced water effect that supports reflections, refractions and flow maps.
+ *
+ * Note that this class can only be used with {@link WebGPURenderer}.
+ * When using {@link WebGLRenderer}, use {@link module:Water2}.
+ *
+ * References:
+ *
+ * - {@link https://alex.vlachos.com/graphics/Vlachos-SIGGRAPH10-WaterFlow.pdf}
+ * - {@link http://graphicsrunner.blogspot.de/2010/08/water-using-flow-maps.html}
+ *
+ * @augments Mesh
+ * @three_import import { WaterMesh } from 'three/addons/objects/Water2Mesh.js';
+ */
 class WaterMesh extends Mesh {
 
+	/**
+	 * Constructs a new water mesh.
+	 *
+	 * @param {BufferGeometry} geometry - The water's geometry.
+	 * @param {module:Water2~Options} [options] - The configuration options.
+	 */
 	constructor( geometry, options = {} ) {
 
 		const material = new NodeMaterial();
+		material.transparent = true;
 
 		super( geometry, material );
 
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
 		this.isWater = true;
 
-		material.fragmentNode = new WaterNode( options, this );
+		material.colorNode = new WaterNode( options, this );
 
 	}
 
 }
 
-class WaterNode extends TempNode {
+class WaterNode extends Node {
 
 	constructor( options, waterBody ) {
 
@@ -43,7 +66,7 @@ class WaterNode extends TempNode {
 
 		this.normalMap0 = texture( options.normalMap0 );
 		this.normalMap1 = texture( options.normalMap1 );
-		this.flowMap = texture( options.flowMap !== undefined ? options.flowMap : null );
+		this.flowMap = texture( options.flowMap );
 
 		this.color = uniform( options.color !== undefined ? new Color( options.color ) : new Color( 0xffffff ) );
 		this.flowDirection = uniform( options.flowDirection !== undefined ? options.flowDirection : new Vector2( 1, 0 ) );
@@ -158,5 +181,19 @@ class WaterNode extends TempNode {
 	}
 
 }
+
+/**
+ * Constructor options of `WaterMesh`.
+ *
+ * @typedef {Object} module:Water2Mesh~Options
+ * @property {number|Color|string} [color=0xFFFFFF] - The water color.
+ * @property {Vector2} [flowDirection=(1,0)] - The water's flow direction.
+ * @property {number} [flowSpeed=0.03] - The water's flow speed.
+ * @property {number} [reflectivity=0.02] - The water's reflectivity.
+ * @property {number} [scale=1] - The water's scale.
+ * @property {?Texture} [flowMap=null] - The flow map. If no flow map is assigned, the water flow is defined by `flowDirection`.
+ * @property {Texture} normalMap0 - The first water normal map.
+ * @property {Texture} normalMap1 - The second water normal map.
+ **/
 
 export { WaterMesh };

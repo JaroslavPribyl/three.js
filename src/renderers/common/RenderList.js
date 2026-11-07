@@ -1,5 +1,7 @@
 import { DoubleSide } from '../../constants.js';
 
+const _emptyArray = /*@__PURE__*/ Object.freeze( [] );
+
 /**
  * Default sorting function for opaque render items.
  *
@@ -7,7 +9,7 @@ import { DoubleSide } from '../../constants.js';
  * @function
  * @param {Object} a - The first render item.
  * @param {Object} b - The second render item.
- * @return {Number} A numeric value which defines the sort order.
+ * @return {number} A numeric value which defines the sort order.
  */
 function painterSortStable( a, b ) {
 
@@ -18,10 +20,6 @@ function painterSortStable( a, b ) {
 	} else if ( a.renderOrder !== b.renderOrder ) {
 
 		return a.renderOrder - b.renderOrder;
-
-	} else if ( a.material.id !== b.material.id ) {
-
-		return a.material.id - b.material.id;
 
 	} else if ( a.z !== b.z ) {
 
@@ -42,7 +40,7 @@ function painterSortStable( a, b ) {
  * @function
  * @param {Object} a - The first render item.
  * @param {Object} b - The second render item.
- * @return {Number} A numeric value which defines the sort order.
+ * @return {number} A numeric value which defines the sort order.
  */
 function reversePainterSortStable( a, b ) {
 
@@ -72,11 +70,11 @@ function reversePainterSortStable( a, b ) {
  * @private
  * @function
  * @param {Material} material - The transparent material.
- * @return {Boolean} Whether the given material requires a double pass or not.
+ * @return {boolean} Whether the given material requires a double pass or not.
  */
 function needsDoublePass( material ) {
 
-	const hasTransmission = material.transmission > 0 || material.transmissionNode;
+	const hasTransmission = material.transmission > 0 || ( material.transmissionNode && material.transmissionNode.isNode );
 
 	return hasTransmission && material.side === DoubleSide && material.forceSinglePass === false;
 
@@ -114,7 +112,7 @@ class RenderList {
 		/**
 		 * The current render items index.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 * @default 0
 		 */
 		this.renderItemsIndex = 0;
@@ -149,13 +147,20 @@ class RenderList {
 		this.bundles = [];
 
 		/**
+		 * The lighting management component.
+		 *
+		 * @type {Lighting}
+		 */
+		this.lighting = lighting;
+
+		/**
 		 * The render list's lights node. This node is later
 		 * relevant for the actual analytical light nodes which
 		 * compute the scene's lighting in the shader.
 		 *
 		 * @type {LightsNode}
 		 */
-		this.lightsNode = lighting.getNode( scene, camera );
+		this.lightsNode = lighting.getNode( scene );
 
 		/**
 		 * The scene's lights stored in an array. This array
@@ -182,10 +187,30 @@ class RenderList {
 		/**
 		 * How many objects perform occlusion query tests.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 * @default 0
 		 */
 		this.occlusionQueryCount = 0;
+
+		/**
+		 * The ID of the frame the render list was last used in.
+		 *
+		 * @type {number}
+		 * @default -1
+		 */
+		this.frameId = - 1;
+
+		/**
+		 * The last object that was counted for occlusion query testing. Used to
+		 * avoid counting an object more than once when it produces multiple render
+		 * items (e.g. a mesh with multiple material groups), since such an object
+		 * is covered by a single occlusion query.
+		 *
+		 * @private
+		 * @type {?Object3D}
+		 * @default null
+		 */
+		this._lastOcclusionObject = null;
 
 	}
 
@@ -223,9 +248,9 @@ class RenderList {
 	 * @param {Object3D} object - The 3D object.
 	 * @param {BufferGeometry} geometry - The 3D object's geometry.
 	 * @param {Material} material - The 3D object's material.
-	 * @param {Number} groupOrder - The current group order.
-	 * @param {Number} z - Th 3D object's depth value (z value in clip space).
-	 * @param {Number?} group - {Object?} group - Only relevant for objects using multiple materials. This represents a group entry from the respective `BufferGeometry`.
+	 * @param {number} groupOrder - The current group order.
+	 * @param {number} z - Th 3D object's depth value (z value in clip space).
+	 * @param {?number} group - {?Object} group - Only relevant for objects using multiple materials. This represents a group entry from the respective `BufferGeometry`.
 	 * @param {ClippingContext} clippingContext - The current clipping context.
 	 * @return {Object} The render item.
 	 */
@@ -276,18 +301,29 @@ class RenderList {
 	 * @param {Object3D} object - The 3D object.
 	 * @param {BufferGeometry} geometry - The 3D object's geometry.
 	 * @param {Material} material - The 3D object's material.
-	 * @param {Number} groupOrder - The current group order.
-	 * @param {Number} z - Th 3D object's depth value (z value in clip space).
-	 * @param {Number?} group - {Object?} group - Only relevant for objects using multiple materials. This represents a group entry from the respective `BufferGeometry`.
+	 * @param {number} groupOrder - The current group order.
+	 * @param {number} z - Th 3D object's depth value (z value in clip space).
+	 * @param {?number} group - {?Object} group - Only relevant for objects using multiple materials. This represents a group entry from the respective `BufferGeometry`.
 	 * @param {ClippingContext} clippingContext - The current clipping context.
 	 */
 	push( object, geometry, material, groupOrder, z, group, clippingContext ) {
 
+		// with a reversed depth buffer the projected z is inverted
+
+		if ( this.camera.reversedDepth === true ) z = - z;
+
 		const renderItem = this.getNextRenderItem( object, geometry, material, groupOrder, z, group, clippingContext );
 
-		if ( object.occlusionTest === true ) this.occlusionQueryCount ++;
+		if ( object.occlusionTest === true && this._lastOcclusionObject !== object ) {
 
-		if ( material.transparent === true || material.transmission > 0 ) {
+			this.occlusionQueryCount ++;
+			this._lastOcclusionObject = object;
+
+		}
+
+		if ( material.transparent === true || material.transmission > 0 ||
+			( material.transmissionNode && material.transmissionNode.isNode ) ||
+			( material.backdropNode && material.backdropNode.isNode ) ) {
 
 			if ( needsDoublePass( material ) ) this.transparentDoublePass.push( renderItem );
 
@@ -308,16 +344,18 @@ class RenderList {
 	 * @param {Object3D} object - The 3D object.
 	 * @param {BufferGeometry} geometry - The 3D object's geometry.
 	 * @param {Material} material - The 3D object's material.
-	 * @param {Number} groupOrder - The current group order.
-	 * @param {Number} z - Th 3D object's depth value (z value in clip space).
-	 * @param {Number?} group - {Object?} group - Only relevant for objects using multiple materials. This represents a group entry from the respective `BufferGeometry`.
+	 * @param {number} groupOrder - The current group order.
+	 * @param {number} z - Th 3D object's depth value (z value in clip space).
+	 * @param {?number} group - {?Object} group - Only relevant for objects using multiple materials. This represents a group entry from the respective `BufferGeometry`.
 	 * @param {ClippingContext} clippingContext - The current clipping context.
 	 */
 	unshift( object, geometry, material, groupOrder, z, group, clippingContext ) {
 
 		const renderItem = this.getNextRenderItem( object, geometry, material, groupOrder, z, group, clippingContext );
 
-		if ( material.transparent === true || material.transmission > 0 ) {
+		if ( material.transparent === true || material.transmission > 0 ||
+			( material.transmissionNode && material.transmissionNode.isNode ) ||
+			( material.backdropNode && material.backdropNode.isNode ) ) {
 
 			if ( needsDoublePass( material ) ) this.transparentDoublePass.unshift( renderItem );
 
@@ -356,8 +394,8 @@ class RenderList {
 	/**
 	 * Sorts the internal render lists.
 	 *
-	 * @param {function(Any, Any): Number} customOpaqueSort - A custom sort function for opaque objects.
-	 * @param {function(Any, Any): Number} customTransparentSort -  A custom sort function for transparent objects.
+	 * @param {?function(any, any): number} customOpaqueSort - A custom sort function for opaque objects.
+	 * @param {?function(any, any): number} customTransparentSort -  A custom sort function for transparent objects.
 	 */
 	sort( customOpaqueSort, customTransparentSort ) {
 
@@ -375,7 +413,7 @@ class RenderList {
 
 		// update lights
 
-		this.lightsNode.setLights( this.lightsArray );
+		this.lightsNode.setLights( this.lighting.enabled ? this.lightsArray : _emptyArray );
 
 		// Clear references from inactive renderItems in the list
 
@@ -385,19 +423,52 @@ class RenderList {
 
 			if ( renderItem.id === null ) break;
 
-			renderItem.id = null;
-			renderItem.object = null;
-			renderItem.geometry = null;
-			renderItem.material = null;
-			renderItem.groupOrder = null;
-			renderItem.renderOrder = null;
-			renderItem.z = null;
-			renderItem.group = null;
-			renderItem.clippingContext = null;
+			resetRenderItem( renderItem );
 
 		}
 
+		this._lastOcclusionObject = null;
+
 	}
+
+	/**
+	 * This method is called when the render list has become inactive.
+	 */
+	clear() {
+
+		// Clear all references from the render items so scene objects
+		// are not retained when the render list is not used anymore.
+
+		for ( let i = 0, il = this.renderItems.length; i < il; i ++ ) {
+
+			const renderItem = this.renderItems[ i ];
+
+			if ( renderItem.id === null ) break;
+
+			resetRenderItem( renderItem );
+
+		}
+
+		this.opaque.length = 0;
+		this.transparentDoublePass.length = 0;
+		this.transparent.length = 0;
+		this.bundles.length = 0;
+
+	}
+
+}
+
+function resetRenderItem( renderItem ) {
+
+	renderItem.id = null;
+	renderItem.object = null;
+	renderItem.geometry = null;
+	renderItem.material = null;
+	renderItem.groupOrder = null;
+	renderItem.renderOrder = null;
+	renderItem.z = null;
+	renderItem.group = null;
+	renderItem.clippingContext = null;
 
 }
 

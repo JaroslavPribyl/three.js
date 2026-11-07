@@ -22,10 +22,18 @@ class WebGLCapabilities {
 		/**
 		 * This value holds the cached max anisotropy value.
 		 *
-		 * @type {Number?}
+		 * @type {?number}
 		 * @default null
 		 */
 		this.maxAnisotropy = null;
+
+		/**
+		 * This value holds the cached max uniform block size value.
+		 *
+		 * @type {?number}
+		 * @default null
+		 */
+		this.maxUniformBlockSize = null;
 
 	}
 
@@ -34,7 +42,7 @@ class WebGLCapabilities {
 	 * depends on the device and is reported by the `EXT_texture_filter_anisotropic`
 	 * WebGL extension.
 	 *
-	 * @return {Number} The maximum anisotropy texture filtering value.
+	 * @return {number} The maximum anisotropy texture filtering value.
 	 */
 	getMaxAnisotropy() {
 
@@ -56,6 +64,23 @@ class WebGLCapabilities {
 		}
 
 		return this.maxAnisotropy;
+
+	}
+
+	/**
+	 * Returns the maximum number of bytes available for uniform buffers.
+	 *
+	 * @return {number} The maximum number of bytes available for uniform buffers.
+	 */
+	getUniformBufferLimit() {
+
+		if ( this.maxUniformBlockSize !== null ) return this.maxUniformBlockSize;
+
+		const gl = this.backend.gl;
+
+		this.maxUniformBlockSize = gl.getParameter( gl.MAX_UNIFORM_BLOCK_SIZE );
+
+		return this.maxUniformBlockSize;
 
 	}
 

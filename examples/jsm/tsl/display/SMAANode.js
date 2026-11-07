@@ -1,7 +1,5 @@
-import { HalfFloatType, LinearFilter, NearestFilter, RenderTarget, Texture, Vector2, QuadMesh, NodeMaterial, TempNode, RendererUtils } from 'three/webgpu';
-import { abs, nodeObject, Fn, NodeUpdateType, uv, uniform, convertToTexture, varyingProperty, vec2, vec4, modelViewProjection, passTexture, max, step, dot, float, texture, If, Loop, int, Break, sqrt, sign, mix } from 'three/tsl';
-
-/** @module SMAANode **/
+import { HalfFloatType, LinearFilter, NearestFilter, RenderTarget, Texture, Vector2, QuadMesh, NodeMaterial, Node, RendererUtils } from 'three/webgpu';
+import { abs, Fn, NodeUpdateType, uv, uniform, convertToTexture, vec2, vec4, passTexture, max, step, dot, float, texture, If, Loop, int, Break, sqrt, sign, mix, context } from 'three/tsl';
 
 const _quadMesh = /*@__PURE__*/ new QuadMesh();
 const _size = /*@__PURE__*/ new Vector2();
@@ -16,9 +14,10 @@ let _rendererState;
  * Used Preset: SMAA 1x Medium (with color edge detection)
  * Reference: {@link https://github.com/iryoku/smaa/releases/tag/v2.8}.
  *
- * @augments TempNode
+ * @augments Node
+ * @three_import import { smaa } from 'three/addons/tsl/display/SMAANode.js';
  */
-class SMAANode extends TempNode {
+class SMAANode extends Node {
 
 	static get type() {
 
@@ -46,7 +45,7 @@ class SMAANode extends TempNode {
 		 * The `updateBeforeType` is set to `NodeUpdateType.FRAME` since the node renders
 		 * its effect once per frame in `updateBefore()`.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default 'frame'
 		 */
 		this.updateBeforeType = NodeUpdateType.FRAME;
@@ -218,8 +217,8 @@ class SMAANode extends TempNode {
 	/**
 	 * Sets the size of the effect.
 	 *
-	 * @param {Number} width - The width of the effect.
-	 * @param {Number} height - The height of the effect.
+	 * @param {number} width - The width of the effect.
+	 * @param {number} height - The height of the effect.
 	 */
 	setSize( width, height ) {
 
@@ -293,25 +292,11 @@ class SMAANode extends TempNode {
 
 		// edges
 
-		const SMAAEdgeDetectionVS = Fn( () => {
+		const SMAAEdgeDetection = Fn( () => {
 
-			const vOffset0 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 1.0, 0.0, 0.0, - 1.0 ) ) );
-			const vOffset1 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( 1.0, 0.0, 0.0, 1.0 ) ) );
-			const vOffset2 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 2.0, 0.0, 0.0, - 2.0 ) ) );
-
-			varyingProperty( 'vec4', 'vOffset0' ).assign( vOffset0 );
-			varyingProperty( 'vec4', 'vOffset1' ).assign( vOffset1 );
-			varyingProperty( 'vec4', 'vOffset2' ).assign( vOffset2 );
-
-			return modelViewProjection;
-
-		} );
-
-		const SMAAEdgeDetectionFS = Fn( () => {
-
-			const vOffset0 = varyingProperty( 'vec4', 'vOffset0' );
-			const vOffset1 = varyingProperty( 'vec4', 'vOffset1' );
-			const vOffset2 = varyingProperty( 'vec4', 'vOffset2' );
+			const vOffset0 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 1.0, 0.0, 0.0, - 1.0 ) ) ).toVertexStage();
+			const vOffset1 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( 1.0, 0.0, 0.0, 1.0 ) ) ).toVertexStage();
+			const vOffset2 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 2.0, 0.0, 0.0, - 2.0 ) ) ).toVertexStage();
 
 			const threshold = vec2( SMAA_THRESHOLD, SMAA_THRESHOLD );
 
@@ -322,11 +307,11 @@ class SMAANode extends TempNode {
 			// Calculate left and top deltas:
 			const Cleft = this.textureNode.sample( vOffset0.xy ).rgb.toVar();
 			let t = abs( C.sub( Cleft ) );
-			delta.x = max( max( t.r, t.g ), t.b );
+			delta.x = max( t.r, t.g, t.b );
 
 			const Ctop = this.textureNode.sample( vOffset0.zw ).rgb.toVar();
 			t = abs( C.sub( Ctop ) );
-			delta.y = max( max( t.r, t.g ), t.b );
+			delta.y = max( t.r, t.g, t.b );
 
 			// We do the usual threshold:
 			const edges = step( threshold, delta.xy ).toVar();
@@ -337,26 +322,26 @@ class SMAANode extends TempNode {
 			// Calculate right and bottom deltas:
 			const Cright = this.textureNode.sample( vOffset1.xy ).rgb.toVar();
 			t = abs( C.sub( Cright ) );
-			delta.z = max( max( t.r, t.g ), t.b );
+			delta.z = max( t.r, t.g, t.b );
 
 			const Cbottom = this.textureNode.sample( vOffset1.zw ).rgb.toVar();
 			t = abs( C.sub( Cbottom ) );
-			delta.w = max( max( t.r, t.g ), t.b );
+			delta.w = max( t.r, t.g, t.b );
 
 			// Calculate the maximum delta in the direct neighborhood:
-			let maxDelta = max( max( max( delta.x, delta.y ), delta.z ), delta.w ).toVar();
+			let maxDelta = max( delta.x, delta.y, delta.z, delta.w ).toVar();
 
 			// Calculate left-left and top-top deltas:
 			const Cleftleft = this.textureNode.sample( vOffset2.xy ).rgb.toVar();
 			t = abs( C.sub( Cleftleft ) );
-			delta.z = max( max( t.r, t.g ), t.b );
+			delta.z = max( t.r, t.g, t.b );
 
 			const Ctoptop = this.textureNode.sample( vOffset2.zw ).rgb.toVar();
 			t = abs( C.sub( Ctoptop ) );
-			delta.w = max( max( t.r, t.g ), t.b );
+			delta.w = max( t.r, t.g, t.b );
 
 			// Calculate the final maximum delta:
-			maxDelta = max( max( maxDelta, delta.z ), delta.w );
+			maxDelta = max( maxDelta, delta.z, delta.w );
 
 			// Local contrast adaptation in action:
 			edges.xy.mulAssign( vec2( step( float( 0.5 ).mul( maxDelta ), delta.xy ) ) );
@@ -514,32 +499,16 @@ class SMAANode extends TempNode {
 
 		} );
 
-		const SMAAWeightsVS = Fn( () => {
+		const SMAAWeights = Fn( () => {
 
-			const vPixcoord = uvNode.xy.div( this._invSize );
+			const vPixcoord = uvNode.xy.div( this._invSize ).toVertexStage();
 
 			// We will use these offsets for the searches later on (see @PSEUDO_GATHER4):
-			const vOffset0 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 0.25, - 0.125, 1.25, - 0.125 ) ) ).toVar();
-			const vOffset1 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 0.125, - 0.25, - 0.125, 1.25 ) ) ).toVar();
+			const vOffset0 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 0.25, - 0.125, 1.25, - 0.125 ) ) ).toVertexStage();
+			const vOffset1 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 0.125, - 0.25, - 0.125, 1.25 ) ) ).toVertexStage();
 
 			// And these for the searches, they indicate the ends of the loops:
-			const vOffset2 = vec4( vOffset0.xz, vOffset1.yw ).add( vec4( - 2.0, 2.0, - 2.0, 2.0 ).mul( vec4( this._invSize.xx, this._invSize.yy ) ).mul( float( SMAA_MAX_SEARCH_STEPS ) ) ).toVar();
-
-			varyingProperty( 'vec2', 'vPixcoord' ).assign( vPixcoord );
-			varyingProperty( 'vec4', 'vOffset0' ).assign( vOffset0 );
-			varyingProperty( 'vec4', 'vOffset1' ).assign( vOffset1 );
-			varyingProperty( 'vec4', 'vOffset2' ).assign( vOffset2 );
-
-			return modelViewProjection;
-
-		} );
-
-		const SMAAWeightsFS = Fn( () => {
-
-			const vPixcoord = varyingProperty( 'vec2', 'vPixcoord' );
-			const vOffset0 = varyingProperty( 'vec4', 'vOffset0' );
-			const vOffset1 = varyingProperty( 'vec4', 'vOffset1' );
-			const vOffset2 = varyingProperty( 'vec4', 'vOffset2' );
+			const vOffset2 = vec4( vOffset0.xz, vOffset1.yw ).add( vec4( - 2.0, 2.0, - 2.0, 2.0 ).mul( vec4( this._invSize.xx, this._invSize.yy ) ).mul( float( SMAA_MAX_SEARCH_STEPS ) ) ).toVertexStage();
 
 			const weights = vec4( 0.0, 0.0, 0.0, 0.0 ).toVar();
 			const subsampleIndices = vec4( 0.0, 0.0, 0.0, 0.0 ).toVar();
@@ -624,22 +593,9 @@ class SMAANode extends TempNode {
 
 		// blend
 
-		const SMAABlendVS = Fn( () => {
+		const SMAABlend = Fn( () => {
 
-			//const vOffset0 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( - 1.0, 0.0, 0.0, - 1.0 ) ) );
-			const vOffset1 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( 1.0, 0.0, 0.0, 1.0 ) ) );
-
-			//varyingProperty( 'vec4', 'vOffset0' ).assign( vOffset0 );
-			varyingProperty( 'vec4', 'vOffset1' ).assign( vOffset1 );
-
-			return modelViewProjection;
-
-		} );
-
-		const SMAABlendFS = Fn( () => {
-
-			//const vOffset0 = varyingProperty( 'vec4', 'vOffset0' );
-			const vOffset1 = varyingProperty( 'vec4', 'vOffset1' );
+			const vOffset1 = vec4( uvNode.xy, uvNode.xy ).add( vec4( this._invSize.xy, this._invSize.xy ).mul( vec4( 1.0, 0.0, 0.0, 1.0 ) ) ).toVertexStage();
 			const result = vec4().toVar();
 
 			// Fetch the blending weights for current pixel:
@@ -695,16 +651,18 @@ class SMAANode extends TempNode {
 
 		} );
 
-		this._materialEdges.vertexNode = SMAAEdgeDetectionVS().context( builder.getSharedContext() );
-		this._materialEdges.fragmentNode = SMAAEdgeDetectionFS().context( builder.getSharedContext() );
+		const sharedContext = context( builder.getSharedContext() );
+
+		this._materialEdges.contextNode = sharedContext;
+		this._materialEdges.fragmentNode = SMAAEdgeDetection();
 		this._materialEdges.needsUpdate = true;
 
-		this._materialWeights.vertexNode = SMAAWeightsVS().context( builder.getSharedContext() );
-		this._materialWeights.fragmentNode = SMAAWeightsFS().context( builder.getSharedContext() );
+		this._materialWeights.contextNode = sharedContext;
+		this._materialWeights.fragmentNode = SMAAWeights();
 		this._materialWeights.needsUpdate = true;
 
-		this._materialBlend.vertexNode = SMAABlendVS().context( builder.getSharedContext() );
-		this._materialBlend.fragmentNode = SMAABlendFS().context( builder.getSharedContext() );
+		this._materialBlend.contextNode = sharedContext;
+		this._materialBlend.fragmentNode = SMAABlend();
 		this._materialBlend.needsUpdate = true;
 
 		return this._textureNode;
@@ -716,6 +674,8 @@ class SMAANode extends TempNode {
 	 * when the effect is no longer required.
 	 */
 	dispose() {
+
+		super.dispose();
 
 		this._renderTargetEdges.dispose();
 		this._renderTargetWeights.dispose();
@@ -734,7 +694,7 @@ class SMAANode extends TempNode {
 	 * Returns the area texture as a Base64 string.
 	 *
 	 * @private
-	 * @return {String} The area texture.
+	 * @return {string} The area texture.
 	 */
 	_getAreaTexture() {
 
@@ -746,7 +706,7 @@ class SMAANode extends TempNode {
 	 * Returns the search texture as a Base64 string..
 	 *
 	 * @private
-	 * @return {String} The search texture.
+	 * @return {string} The search texture.
 	 */
 	_getSearchTexture() {
 
@@ -758,4 +718,12 @@ class SMAANode extends TempNode {
 
 export default SMAANode;
 
-export const smaa = ( node ) => nodeObject( new SMAANode( convertToTexture( node ) ) );
+/**
+ * TSL function for creating a SMAA node for anti-aliasing via post processing.
+ *
+ * @tsl
+ * @function
+ * @param {Node<vec4>} node - The node that represents the input of the effect.
+ * @returns {SMAANode}
+ */
+export const smaa = ( node ) => new SMAANode( convertToTexture( node ) );

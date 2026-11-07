@@ -1,8 +1,11 @@
 import { Matrix3 } from '../../math/Matrix3.js';
+import { Matrix4 } from '../../math/Matrix4.js';
 import { Plane } from '../../math/Plane.js';
 import { Vector4 } from '../../math/Vector4.js';
 
 const _plane = /*@__PURE__*/ new Plane();
+
+let _clippingContextId = 0;
 
 /**
  * Represents the state that is used to perform clipping via clipping planes.
@@ -17,14 +20,22 @@ class ClippingContext {
 	/**
 	 * Constructs a new clipping context.
 	 *
-	 * @param {ClippingContext?} [parentContext=null] - A reference to the parent clipping context.
+	 * @param {?ClippingContext} [parentContext=null] - A reference to the parent clipping context.
 	 */
 	constructor( parentContext = null ) {
 
 		/**
+		 * The id of the clipping context.
+		 *
+		 * @type {number}
+		 * @readonly
+		 */
+		this.id = _clippingContextId ++;
+
+		/**
 		 * The clipping context's version.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 * @readonly
 		 */
 		this.version = 0;
@@ -32,7 +43,7 @@ class ClippingContext {
 		/**
 		 * Whether the intersection of the clipping planes is used to clip objects, rather than their union.
 		 *
-		 * @type {Boolean?}
+		 * @type {?boolean}
 		 * @default null
 		 */
 		this.clipIntersection = null;
@@ -40,17 +51,24 @@ class ClippingContext {
 		/**
 		 * The clipping context's cache key.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 */
 		this.cacheKey = '';
 
 		/**
 		 * Whether the shadow pass is active or not.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default false
 		 */
 		this.shadowPass = false;
+
+		/**
+		 * The view matrix.
+		 *
+		 * @type {Matrix4}
+		 */
+		this.viewMatrix = new Matrix4();
 
 		/**
 		 * The view normal matrix.
@@ -83,18 +101,18 @@ class ClippingContext {
 		/**
 		 * The version of the clipping context's parent context.
 		 *
-		 * @type {Number?}
+		 * @type {?number}
 		 * @readonly
 		 */
 		this.parentVersion = null;
 
 		if ( parentContext !== null ) {
 
+			this.viewMatrix = parentContext.viewMatrix;
 			this.viewNormalMatrix = parentContext.viewNormalMatrix;
 			this.clippingGroupContexts = parentContext.clippingGroupContexts;
 
 			this.shadowPass = parentContext.shadowPass;
-			this.viewMatrix = parentContext.viewMatrix;
 
 		}
 
@@ -106,7 +124,7 @@ class ClippingContext {
 	 *
 	 * @param {Array<Plane>} source - The source clipping planes.
 	 * @param {Array<Vector4>} destination - The destination.
-	 * @param {Number} offset - The offset.
+	 * @param {number} offset - The offset.
 	 */
 	projectPlanes( source, destination, offset ) {
 
@@ -137,7 +155,18 @@ class ClippingContext {
 	updateGlobal( scene, camera ) {
 
 		this.shadowPass = ( scene.overrideMaterial !== null && scene.overrideMaterial.isShadowPassMaterial );
-		this.viewMatrix = camera.matrixWorldInverse;
+
+		if ( camera.isArrayCamera === true ) {
+
+			// ArrayCamera sub-cameras share the planes, so keep them in world space.
+
+			this.viewMatrix.identity();
+
+		} else {
+
+			this.viewMatrix.copy( camera.matrixWorldInverse );
+
+		}
 
 		this.viewNormalMatrix.getNormalMatrix( this.viewMatrix );
 
@@ -214,7 +243,7 @@ class ClippingContext {
 		if ( update ) {
 
 			this.version ++;
-			this.cacheKey = `${ this.intersectionPlanes.length }:${ this.unionPlanes.length }`;
+			this.cacheKey = `${ this.id }:${ this.intersectionPlanes.length }:${ this.unionPlanes.length }`;
 
 		}
 
@@ -248,7 +277,7 @@ class ClippingContext {
 	/**
 	 * The count of union clipping planes.
 	 *
-	 * @type {Number}
+	 * @type {number}
 	 * @readonly
 	 */
 	get unionClippingCount() {

@@ -6,6 +6,10 @@ import { Group } from '../../objects/Group.js';
  * are considered as one render bundle and processed as such by
  * the renderer.
  *
+ * Only renderable 3D objects are allowed in a bundle group. Other
+ * types like lights are not supported and must be added to the scene
+ * outside of the group.
+ *
  * This module is only fully supported by `WebGPURenderer` with a WebGPU backend.
  * With a WebGL backend, the group can technically be rendered but without
  * any performance improvements.
@@ -24,7 +28,7 @@ class BundleGroup extends Group {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -35,7 +39,7 @@ class BundleGroup extends Group {
 		 * during serialization/deserialization. It should always
 		 * match the class name.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @readonly
 		 * @default 'BundleGroup'
 		 */
@@ -44,12 +48,12 @@ class BundleGroup extends Group {
 		/**
 		 * Whether the bundle is static or not. When set to `true`, the structure
 		 * is assumed to be static and does not change. E.g. no new objects are
-		 * added to the group
+		 * added to the group.
 		 *
 		 * If a change is required, an update can still be forced by setting the
 		 * `needsUpdate` flag to `true`.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default true
 		 */
 		this.static = true;
@@ -57,7 +61,7 @@ class BundleGroup extends Group {
 		/**
 		 * The bundle group's version.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 * @readonly
 		 * @default 0
 		 */
@@ -68,9 +72,9 @@ class BundleGroup extends Group {
 	/**
 	 * Set this property to `true` when the bundle group has changed.
 	 *
-	 * @type {Boolean}
+	 * @type {boolean}
 	 * @default false
-	 * @param {Boolean} value
+	 * @param {boolean} value
 	 */
 	set needsUpdate( value ) {
 

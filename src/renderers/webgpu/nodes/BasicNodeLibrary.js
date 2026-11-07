@@ -9,6 +9,7 @@ import { AmbientLight } from '../../../lights/AmbientLight.js';
 import { HemisphereLight } from '../../../lights/HemisphereLight.js';
 import { LightProbe } from '../../../lights/LightProbe.js';
 import IESSpotLight from '../../../lights/webgpu/IESSpotLight.js';
+import ProjectorLight from '../../../lights/webgpu/ProjectorLight.js';
 import {
 	PointLightNode,
 	DirectionalLightNode,
@@ -17,12 +18,23 @@ import {
 	AmbientLightNode,
 	HemisphereLightNode,
 	LightProbeNode,
-	IESSpotLightNode
+	IESSpotLightNode,
+	ProjectorLightNode
 } from '../../../nodes/Nodes.js';
 
 // Tone Mapping
 import { LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping } from '../../../constants.js';
 import { linearToneMapping, reinhardToneMapping, cineonToneMapping, acesFilmicToneMapping, agxToneMapping, neutralToneMapping } from '../../../nodes/display/ToneMappingFunctions.js';
+
+PointLight.registerNode( PointLightNode );
+DirectionalLight.registerNode( DirectionalLightNode );
+RectAreaLight.registerNode( RectAreaLightNode );
+SpotLight.registerNode( SpotLightNode );
+AmbientLight.registerNode( AmbientLightNode );
+HemisphereLight.registerNode( HemisphereLightNode );
+LightProbe.registerNode( LightProbeNode );
+IESSpotLight.registerNode( IESSpotLightNode );
+ProjectorLight.registerNode( ProjectorLightNode );
 
 /**
  * This version of a node library represents a basic version
@@ -39,15 +51,6 @@ class BasicNodeLibrary extends NodeLibrary {
 	constructor() {
 
 		super();
-
-		this.addLight( PointLightNode, PointLight );
-		this.addLight( DirectionalLightNode, DirectionalLight );
-		this.addLight( RectAreaLightNode, RectAreaLight );
-		this.addLight( SpotLightNode, SpotLight );
-		this.addLight( AmbientLightNode, AmbientLight );
-		this.addLight( HemisphereLightNode, HemisphereLight );
-		this.addLight( LightProbeNode, LightProbe );
-		this.addLight( IESSpotLightNode, IESSpotLight );
 
 		this.addToneMapping( linearToneMapping, LinearToneMapping );
 		this.addToneMapping( reinhardToneMapping, ReinhardToneMapping );

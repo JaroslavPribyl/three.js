@@ -1,7 +1,4 @@
 import ReferenceNode from './ReferenceNode.js';
-import { nodeObject } from '../tsl/TSLBase.js';
-
-/** @module UserDataNode **/
 
 /**
  * A special type of reference node that allows to link values in
@@ -12,10 +9,10 @@ import { nodeObject } from '../tsl/TSLBase.js';
  * const material = new THREE.SpriteNodeMaterial();
  * material.rotationNode = userData( 'rotation', 'float' );
  * ```
- * Since `UserDataNode` is extended from {@link module:ReferenceNode~ReferenceNode}, the node value
+ * Since `UserDataNode` is extended from {@link ReferenceNode}, the node value
  * will automatically be updated when the `rotation` user data field changes.
  *
- * @augments module:ReferenceNode~ReferenceNode
+ * @augments ReferenceNode
  */
 class UserDataNode extends ReferenceNode {
 
@@ -28,9 +25,9 @@ class UserDataNode extends ReferenceNode {
 	/**
 	 * Constructs a new user data node.
 	 *
-	 * @param {String} property - The property name that should be referenced by the node.
-	 * @param {String} inputType - The node data type of the reference.
-	 * @param {Object?} [userData=null] - A reference to the `userData` object. If not provided, the `userData` property of the 3D object that uses the node material is evaluated.
+	 * @param {string} property - The property name that should be referenced by the node.
+	 * @param {string} inputType - The node data type of the reference.
+	 * @param {?Object} [userData=null] - A reference to the `userData` object. If not provided, the `userData` property of the 3D object that uses the node material is evaluated.
 	 */
 	constructor( property, inputType, userData = null ) {
 
@@ -40,7 +37,7 @@ class UserDataNode extends ReferenceNode {
 		 * A reference to the `userData` object. If not provided, the `userData`
 		 * property of the 3D object that uses the node material is evaluated.
 		 *
-		 * @type {Object?}
+		 * @type {?Object}
 		 * @default null
 		 */
 		this.userData = userData;
@@ -48,7 +45,7 @@ class UserDataNode extends ReferenceNode {
 	}
 
 	/**
-	 * Overwritten to make sure {@link module:ReferenceNode~ReferenceNode#reference} points to the correct
+	 * Overwritten to make sure {@link ReferenceNode#reference} points to the correct
 	 * `userData` field.
 	 *
 	 * @param {(NodeFrame|NodeBuilder)} state - The current state to evaluate.
@@ -69,10 +66,11 @@ export default UserDataNode;
 /**
  * TSL function for creating a user data node.
  *
+ * @tsl
  * @function
- * @param {String} name - The property name that should be referenced by the node.
- * @param {String} inputType - The node data type of the reference.
- * @param {Object?} userData - A reference to the `userData` object. If not provided, the `userData` property of the 3D object that uses the node material is evaluated.
+ * @param {string} name - The property name that should be referenced by the node.
+ * @param {string} inputType - The node data type of the reference.
+ * @param {?Object} userData - A reference to the `userData` object. If not provided, the `userData` property of the 3D object that uses the node material is evaluated.
  * @returns {UserDataNode}
  */
-export const userData = ( name, inputType, userData ) => nodeObject( new UserDataNode( name, inputType, userData ) );
+export const userData = ( name, inputType, userData ) => new UserDataNode( name, inputType, userData );

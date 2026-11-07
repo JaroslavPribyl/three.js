@@ -19,7 +19,9 @@ class NodeUniformBuffer extends UniformBuffer {
 	 */
 	constructor( nodeUniform, groupNode ) {
 
-		super( 'UniformBuffer_' + _id ++, nodeUniform ? nodeUniform.value : null );
+		const label = nodeUniform && nodeUniform.name ? nodeUniform.name : _id ++;
+
+		super( 'UniformBuffer_' + label );
 
 		/**
 		 * The uniform buffer node.
@@ -34,6 +36,58 @@ class NodeUniformBuffer extends UniformBuffer {
 		 * @type {UniformGroupNode}
 		 */
 		this.groupNode = groupNode;
+
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isNodeUniformBuffer = true;
+
+	}
+
+	/**
+	 * The array of update ranges.
+	 *
+	 * @param {Array<{start: number, count: number}>} value - The update ranges.
+	 */
+	set updateRanges( value ) {
+
+		this.nodeUniform.updateRanges = value;
+
+	}
+
+	/**
+	 * The array of update ranges.
+	 *
+	 * @type {Array<{start: number, count: number}>}
+	 */
+	get updateRanges() {
+
+		return this.nodeUniform.updateRanges;
+
+	}
+
+	/**
+	 * Adds a range of data in the data array to be updated on the GPU.
+	 *
+	 * @param {number} start - Position at which to start update.
+	 * @param {number} count - The number of components to update.
+	 */
+	addUpdateRange( start, count ) {
+
+		this.nodeUniform.addUpdateRange( start, count );
+
+	}
+
+	/**
+	 * Clears all update ranges.
+	 */
+	clearUpdateRanges() {
+
+		this.nodeUniform.clearUpdateRanges();
 
 	}
 

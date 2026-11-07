@@ -7,8 +7,28 @@ import {
 	Vector3
 } from 'three';
 
+/**
+ * An exporter for OBJ.
+ *
+ * `OBJExporter` is not able to export material data into MTL files so only geometry data are supported.
+ *
+ * ```js
+ * const exporter = new OBJExporter();
+ * const data = exporter.parse( scene );
+ * ```
+ *
+ * @three_import import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+ */
 class OBJExporter {
 
+	/**
+	 * Parses the given 3D object and generates the OBJ output.
+	 *
+	 * If the 3D object is composed of multiple children and geometry, they are merged into a single mesh in the file.
+	 *
+	 * @param {Object3D} object - The 3D object to export.
+	 * @return {string} The exported OBJ.
+	 */
 	parse( object ) {
 
 		let output = '';
@@ -38,6 +58,7 @@ class OBJExporter {
 			const vertices = geometry.getAttribute( 'position' );
 			const normals = geometry.getAttribute( 'normal' );
 			const uvs = geometry.getAttribute( 'uv' );
+			const colors = geometry.getAttribute( 'color' );
 			const indices = geometry.getIndex();
 
 			// name of the mesh object
@@ -62,7 +83,19 @@ class OBJExporter {
 					vertex.applyMatrix4( mesh.matrixWorld );
 
 					// transform the vertex to export format
-					output += 'v ' + vertex.x + ' ' + vertex.y + ' ' + vertex.z + '\n';
+					output += 'v ' + vertex.x + ' ' + vertex.y + ' ' + vertex.z;
+
+					if ( colors !== undefined ) {
+
+						color.fromBufferAttribute( colors, i );
+
+						ColorManagement.workingToColorSpace( color, SRGBColorSpace );
+
+						output += ' ' + color.r + ' ' + color.g + ' ' + color.b;
+
+					}
+
+					output += '\n';
 
 				}
 
@@ -157,6 +190,7 @@ class OBJExporter {
 
 			// shortcuts
 			const vertices = geometry.getAttribute( 'position' );
+			const indices = geometry.getIndex();
 
 			// name of the line object
 			output += 'o ' + line.name + '\n';
@@ -181,9 +215,23 @@ class OBJExporter {
 
 				output += 'l ';
 
-				for ( let j = 1, l = vertices.count; j <= l; j ++ ) {
+				if ( indices !== null ) {
 
-					output += ( indexVertex + j ) + ' ';
+					for ( let i = 0, l = indices.count; i < l; i ++ ) {
+
+						const j = indices.getX( i ) + 1;
+
+						output += ( indexVertex + j ) + ' ';
+
+					}
+
+				} else {
+
+					for ( let j = 1, l = vertices.count; j <= l; j ++ ) {
+
+						output += ( indexVertex + j ) + ' ';
+
+					}
 
 				}
 
@@ -193,9 +241,24 @@ class OBJExporter {
 
 			if ( type === 'LineSegments' ) {
 
-				for ( let j = 1, k = j + 1, l = vertices.count; j < l; j += 2, k = j + 1 ) {
+				if ( indices !== null ) {
 
-					output += 'l ' + ( indexVertex + j ) + ' ' + ( indexVertex + k ) + '\n';
+					for ( let i = 0, l = indices.count - 1; i < l; i += 2 ) {
+
+						const j = indices.getX( i ) + 1;
+						const k = indices.getX( i + 1 ) + 1;
+
+						output += 'l ' + ( indexVertex + j ) + ' ' + ( indexVertex + k ) + '\n';
+
+					}
+
+				} else {
+
+					for ( let j = 1, k = j + 1, l = vertices.count; j < l; j += 2, k = j + 1 ) {
+
+						output += 'l ' + ( indexVertex + j ) + ' ' + ( indexVertex + k ) + '\n';
+
+					}
 
 				}
 
@@ -230,7 +293,7 @@ class OBJExporter {
 
 						color.fromBufferAttribute( colors, i );
 
-						ColorManagement.fromWorkingColorSpace( color, SRGBColorSpace );
+						ColorManagement.workingToColorSpace( color, SRGBColorSpace );
 
 						output += ' ' + color.r + ' ' + color.g + ' ' + color.b;
 

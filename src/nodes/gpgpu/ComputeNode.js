@@ -1,11 +1,13 @@
 import Node from '../core/Node.js';
+import { instanceIndex } from '../core/IndexNode.js';
+import StackTrace from '../core/StackTrace.js';
+import { uniform } from '../core/UniformNode.js';
 import { NodeUpdateType } from '../core/constants.js';
 import { addMethodChaining, nodeObject } from '../tsl/TSLCore.js';
-
-/** @module ComputeNode **/
+import { warn, error } from '../../utils.js';
 
 /**
- * TODO
+ * Represents a compute shader node.
  *
  * @augments Node
  */
@@ -20,103 +22,107 @@ class ComputeNode extends Node {
 	/**
 	 * Constructs a new compute node.
 	 *
-	 * @param {Node} computeNode - TODO
-	 * @param {Number} count - TODO.
-	 * @param {Array<Number>} [workgroupSize=[64]] - TODO.
+	 * @param {Node} computeNode - The node that defines the compute shader logic.
+	 * @param {Array<number>} workgroupSize - An array defining the X, Y, and Z dimensions of the workgroup for compute shader execution.
 	 */
-	constructor( computeNode, count, workgroupSize = [ 64 ] ) {
+	constructor( computeNode, workgroupSize ) {
 
 		super( 'void' );
 
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
 		this.isComputeNode = true;
 
 		/**
-		 * TODO
+		 * The node that defines the compute shader logic.
 		 *
 		 * @type {Node}
 		 */
 		this.computeNode = computeNode;
 
 		/**
-		 * TODO
+		 * An array defining the X, Y, and Z dimensions of the workgroup for compute shader execution.
 		 *
-		 * @type {Number}
-		 */
-		this.count = count;
-
-		/**
-		 * TODO
-		 *
-		 * @type {Array<Number>}
-		 * @default [64]
+		 * @type {Array<number>}
+		 * @default [ 64 ]
 		 */
 		this.workgroupSize = workgroupSize;
 
 		/**
-		 * TODO
+		 * The total number of threads (invocations) to execute. If it is a number, it will be used
+		 * to automatically generate bounds checking against `instanceIndex`.
 		 *
-		 * @type {Number}
+		 * @type {number|Array<number>}
 		 */
-		this.dispatchCount = 0;
+		this.count = null;
 
 		/**
-		 * TODO
+		 * The dispatch size for workgroups on X, Y, and Z axes.
+		 * Used directly if `count` is not provided.
 		 *
-		 * @type {Number}
+		 * @type {number|Array<number>}
+		 */
+		this.dispatchSize = null;
+
+		/**
+		 * The version of the node.
+		 *
+		 * @type {number}
 		 */
 		this.version = 1;
 
 		/**
 		 * The name or label of the uniform.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default ''
 		 */
 		this.name = '';
 
 		/**
-		 * The `updateBeforeType` is set to `NodeUpdateType.OBJECT` since {@link ComputeNode#updateBefore}
-		 * is executed once per object by default.
+		 * A callback executed when the compute node finishes initialization.
 		 *
-		 * @type {String}
-		 * @default 'object'
-		 */
-		this.updateBeforeType = NodeUpdateType.OBJECT;
-
-		/**
-		 * TODO
-		 *
-		 * @type {Function}
+		 * @type {?Function}
 		 */
 		this.onInitFunction = null;
 
-		this.updateDispatchCount();
+		/**
+		 * A uniform node holding the dispatch count for bounds checking.
+		 * Created automatically when `count` is a number.
+		 *
+		 * @type {?UniformNode}
+		 */
+		this.countNode = null;
+
+		/**
+		 * The `updateBeforeType` is set to `NodeUpdateType.FRAME` since the node computes
+		 * once per frame.
+		 *
+		 * @type {string}
+		 * @default 'frame'
+		 */
+		this.updateBeforeType = NodeUpdateType.FRAME;
 
 	}
 
-	/**
-	 * Executes the `dispose` event for this node.
-	 */
-	dispose() {
+	isCacheable( /*builder*/ ) {
 
-		this.dispatchEvent( { type: 'dispose' } );
+		return false;
 
 	}
 
 	/**
 	 * Sets the {@link ComputeNode#name} property.
 	 *
-	 * @param {String} name - The name of the uniform.
+	 * @param {string} name - The name of the uniform.
 	 * @return {ComputeNode} A reference to this node.
 	 */
-	label( name ) {
+	setName( name ) {
 
 		this.name = name;
 
@@ -125,25 +131,24 @@ class ComputeNode extends Node {
 	}
 
 	/**
-	 * TODO
+	 * Sets the {@link ComputeNode#name} property.
+	 *
+	 * @deprecated
+	 * @param {string} name - The name of the uniform.
+	 * @return {ComputeNode} A reference to this node.
 	 */
-	updateDispatchCount() {
+	label( name ) {
 
-		const { count, workgroupSize } = this;
+		warn( 'TSL: "label()" has been deprecated. Use "setName()" instead.', new StackTrace() ); // @deprecated r179
 
-		let size = workgroupSize[ 0 ];
-
-		for ( let i = 1; i < workgroupSize.length; i ++ )
-			size *= workgroupSize[ i ];
-
-		this.dispatchCount = Math.ceil( count / size );
+		return this.setName( name );
 
 	}
 
 	/**
-	 * TODO
+	 * Sets the callback to run during initialization.
 	 *
-	 * @param {Function} callback - TODO.
+	 * @param {Function} callback - The callback function.
 	 * @return {ComputeNode} A reference to this node.
 	 */
 	onInit( callback ) {
@@ -151,6 +156,18 @@ class ComputeNode extends Node {
 		this.onInitFunction = callback;
 
 		return this;
+
+	}
+
+	/**
+	 * Returns the update type of {@link Node#updateBefore}.
+	 *
+	 * @param {NodeFrame} [frame] - The current node frame.
+	 * @return {NodeUpdateType} The update type.
+	 */
+	getUpdateBeforeType( frame ) {
+
+		return frame.compute !== this ? this.updateBeforeType : NodeUpdateType.NONE;
 
 	}
 
@@ -165,7 +182,30 @@ class ComputeNode extends Node {
 
 	}
 
-	generate( builder ) {
+	setup( builder ) {
+
+		if ( this.count !== null && this.countNode === null ) {
+
+			this.countNode = uniform( this.count, 'uint' ).onObjectUpdate( () => this.count );
+
+		}
+
+		const result = this.computeNode.build( builder );
+
+		if ( result ) {
+
+			const properties = builder.getNodeProperties( this );
+			properties.outputComputeNode = result.outputNode;
+
+			result.outputNode = null;
+
+		}
+
+		return result;
+
+	}
+
+	generate( builder, output ) {
 
 		const { shaderStage } = builder;
 
@@ -179,6 +219,27 @@ class ComputeNode extends Node {
 
 			}
 
+			if ( this.count !== null && builder.allowEarlyReturns === true ) {
+
+				const countSnippet = this.countNode.build( builder, 'uint' );
+				const indexSnippet = instanceIndex.build( builder, 'uint' );
+
+				builder.flow.code = `${ builder.tab }if ( ${ indexSnippet } >= ${ countSnippet } ) { return; }\n\n${ builder.flow.code }`;
+
+			}
+
+
+		} else {
+
+			const properties = builder.getNodeProperties( this );
+			const outputComputeNode = properties.outputComputeNode;
+
+			if ( outputComputeNode ) {
+
+				return outputComputeNode.build( builder, output );
+
+			}
+
 		}
 
 	}
@@ -188,14 +249,71 @@ class ComputeNode extends Node {
 export default ComputeNode;
 
 /**
+ * TSL function for creating a compute kernel node.
+ *
+ * @tsl
+ * @function
+ * @param {Node} node - The TSL logic for the compute shader.
+ * @param {Array<number>} [workgroupSize=[64]] - The workgroup size.
+ * @returns {ComputeNode}
+ */
+export const computeKernel = ( node, workgroupSize = [ 64 ] ) => {
+
+	if ( workgroupSize.length === 0 || workgroupSize.length > 3 ) {
+
+		error( 'TSL: compute() workgroupSize must have 1, 2, or 3 elements', new StackTrace() );
+
+	}
+
+	for ( let i = 0; i < workgroupSize.length; i ++ ) {
+
+		const val = workgroupSize[ i ];
+
+		if ( typeof val !== 'number' || val <= 0 || ! Number.isInteger( val ) ) {
+
+			error( `TSL: compute() workgroupSize element at index [ ${ i } ] must be a positive integer`, new StackTrace() );
+
+		}
+
+	}
+
+	// Implicit fill-up to [ x, y, z ] with 1s, just like WGSL treats @workgroup_size when fewer dimensions are specified
+
+	while ( workgroupSize.length < 3 ) workgroupSize.push( 1 );
+
+	//
+
+	return new ComputeNode( nodeObject( node ), workgroupSize );
+
+};
+
+/**
  * TSL function for creating a compute node.
  *
+ * @tsl
  * @function
- * @param {Node} node - TODO
- * @param {Number} count - TODO.
- * @param {Array<Number>} [workgroupSize=[64]] - TODO.
- * @returns {AtomicFunctionNode}
- */
-export const compute = ( node, count, workgroupSize ) => nodeObject( new ComputeNode( nodeObject( node ), count, workgroupSize ) );
+ * @param {Node} node - The TSL logic for the compute shader.
+ * @param {number|Array<number>} count - The compute count or dispatch size.
+ * @param {Array<number>} [workgroupSize=[64]] - The workgroup size.
+ * @returns {ComputeNode}
+,  */
+export const compute = ( node, count, workgroupSize ) => {
+
+	const computeNode = computeKernel( node, workgroupSize );
+
+	if ( typeof count === 'number' ) {
+
+		computeNode.count = count;
+
+	} else {
+
+		computeNode.dispatchSize = count;
+
+	}
+
+	return computeNode;
+
+};
 
 addMethodChaining( 'compute', compute );
+addMethodChaining( 'computeKernel', computeKernel );

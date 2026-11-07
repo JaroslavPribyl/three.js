@@ -1,8 +1,6 @@
 import Node from './Node.js';
 import { nodeProxy } from '../tsl/TSLBase.js';
 
-/** @module OutputStructNode **/
-
 /**
  * This node can be used to define multiple outputs in a shader programs.
  *
@@ -36,7 +34,7 @@ class OutputStructNode extends Node {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -44,11 +42,23 @@ class OutputStructNode extends Node {
 
 	}
 
-	getNodeType( builder ) {
+	isCacheable( /*builder*/ ) {
 
-		const properties = builder.getNodeProperties( this );
+		return false;
 
-		if ( properties.membersLayout === undefined ) {
+	}
+
+	generateNodeType( /*builder*/ ) {
+
+		return 'OutputType';
+
+	}
+
+	generate( builder ) {
+
+		const nodeData = builder.getDataFromNode( this );
+
+		if ( nodeData.membersLayout === undefined ) {
 
 			const members = this.members;
 			const membersLayout = [];
@@ -62,16 +72,12 @@ class OutputStructNode extends Node {
 
 			}
 
-			properties.membersLayout = membersLayout;
-			properties.structType = builder.getOutputStructTypeFromNode( this, properties.membersLayout );
+			nodeData.membersLayout = membersLayout;
+			nodeData.structType = builder.getOutputStructTypeFromNode( this, nodeData.membersLayout );
 
 		}
 
-		return properties.structType.name;
-
-	}
-
-	generate( builder ) {
+		//
 
 		const propertyName = builder.getOutputStructName();
 		const members = this.members;
@@ -80,7 +86,7 @@ class OutputStructNode extends Node {
 
 		for ( let i = 0; i < members.length; i ++ ) {
 
-			const snippet = members[ i ].build( builder );
+			const snippet = members[ i ].build( builder, nodeData.membersLayout[ i ].type );
 
 			builder.addLineFlowCode( `${ structPrefix }m${ i } = ${ snippet }`, this );
 
@@ -97,6 +103,7 @@ export default OutputStructNode;
 /**
  * TSL function for creating an output struct node.
  *
+ * @tsl
  * @function
  * @param {...Node} members - A parameter list of nodes.
  * @returns {OutputStructNode}

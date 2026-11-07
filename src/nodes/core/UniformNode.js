@@ -1,8 +1,9 @@
 import InputNode from './InputNode.js';
+import StackTrace from '../core/StackTrace.js';
 import { objectGroup } from './UniformGroupNode.js';
-import { nodeObject, getConstNodeType } from '../tsl/TSLCore.js';
-
-/** @module UniformNode **/
+import { getConstNodeType } from '../tsl/TSLCore.js';
+import { getValueFromType } from './NodeUtils.js';
+import { warn } from '../../utils.js';
 
 /**
  * Class for representing a uniform.
@@ -20,8 +21,8 @@ class UniformNode extends InputNode {
 	/**
 	 * Constructs a new uniform node.
 	 *
-	 * @param {Any} value - The value of this node. Usually a JS primitive or three.js object (vector, matrix, color, texture).
-	 * @param {String?} nodeType - The node type. If no explicit type is defined, the node tries to derive the type from its value.
+	 * @param {any} value - The value of this node. Usually a JS primitive or three.js object (vector, matrix, color, texture).
+	 * @param {?string} nodeType - The node type. If no explicit type is defined, the node tries to derive the type from its value.
 	 */
 	constructor( value, nodeType = null ) {
 
@@ -30,7 +31,7 @@ class UniformNode extends InputNode {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -39,7 +40,7 @@ class UniformNode extends InputNode {
 		/**
 		 * The name or label of the uniform.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default ''
 		 */
 		this.name = '';
@@ -58,14 +59,29 @@ class UniformNode extends InputNode {
 	/**
 	 * Sets the {@link UniformNode#name} property.
 	 *
-	 * @param {String} name - The name of the uniform.
+	 * @param {string} name - The name of the uniform.
 	 * @return {UniformNode} A reference to this node.
 	 */
-	label( name ) {
+	setName( name ) {
 
 		this.name = name;
 
 		return this;
+
+	}
+
+	/**
+	 * Sets the {@link UniformNode#name} property.
+	 *
+	 * @deprecated
+	 * @param {string} name - The name of the uniform.
+	 * @return {UniformNode} A reference to this node.
+	 */
+	label( name ) {
+
+		warn( 'TSL: "label()" has been deprecated. Use "setName()" instead.', new StackTrace() ); // @deprecated r179
+
+		return this.setName( name );
 
 	}
 
@@ -99,7 +115,7 @@ class UniformNode extends InputNode {
 	 * classes might overwrite this method with a different implementation.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The uniform hash.
+	 * @return {string} The uniform hash.
 	 */
 	getUniformHash( builder ) {
 
@@ -107,29 +123,14 @@ class UniformNode extends InputNode {
 
 	}
 
-	onUpdate( callback, updateType ) {
-
-		const self = this.getSelf();
-
-		callback = callback.bind( self );
-
-		return super.onUpdate( ( frame ) => {
-
-			const value = callback( frame, self );
-
-			if ( value !== undefined ) {
-
-				this.value = value;
-
-			}
-
-	 	}, updateType );
-
-	}
-
-	generate( builder, output ) {
-
-		const type = this.getNodeType( builder );
+	/**
+	 * Uniform nodes with the same hash share a single uniform. This method returns the node
+	 * the shared uniform refers to which is the first node registered for the hash.
+	 *
+	 * @param {NodeBuilder} builder - The current node builder.
+	 * @return {UniformNode} The node the shared uniform refers to.
+	 */
+	getSharedNode( builder ) {
 
 		const hash = this.getUniformHash( builder );
 
@@ -143,14 +144,84 @@ class UniformNode extends InputNode {
 
 		}
 
+		return sharedNode;
+
+	}
+
+	onUpdate( callback, updateType ) {
+
+		callback = callback.bind( this );
+
+		return super.onUpdate( ( frame ) => {
+
+			const value = callback( frame, this );
+
+			if ( value !== undefined ) {
+
+				this.value = value;
+
+			}
+
+	 	}, updateType );
+
+	}
+
+	getInputType( builder ) {
+
+		let type = super.getInputType( builder );
+
+		if ( type === 'bool' ) {
+
+			type = 'uint';
+
+		}
+
+		return type;
+
+	}
+
+	generate( builder, output ) {
+
+		const type = this.getNodeType( builder );
+
+		const sharedNode = this.getSharedNode( builder );
 		const sharedNodeType = sharedNode.getInputType( builder );
 
-		const nodeUniform = builder.getUniformFromNode( sharedNode, sharedNodeType, builder.shaderStage, this.name || builder.context.label );
-		const propertyName = builder.getPropertyName( nodeUniform );
+		const nodeUniform = builder.getUniformFromNode( sharedNode, sharedNodeType, builder.shaderStage, this.name || builder.context.nodeName );
+		const uniformName = builder.getPropertyName( nodeUniform );
 
-		if ( builder.context.label !== undefined ) delete builder.context.label;
+		if ( builder.context.nodeName !== undefined ) delete builder.context.nodeName;
 
-		return builder.format( propertyName, type, output );
+		//
+
+		let snippet = uniformName;
+
+		if ( type === 'bool' ) {
+
+			// cache to variable
+
+			const nodeData = builder.getDataFromNode( this );
+
+			let propertyName = nodeData.propertyName;
+
+			if ( propertyName === undefined ) {
+
+				const nodeVar = builder.getVarFromNode( this, null, 'bool' );
+				propertyName = builder.getPropertyName( nodeVar );
+
+				nodeData.propertyName = propertyName;
+
+				snippet = builder.format( uniformName, sharedNodeType, type );
+
+				builder.addLineFlowCode( `${ propertyName } = ${ snippet }`, this );
+
+			}
+
+			snippet = propertyName;
+
+		}
+
+		return builder.format( snippet, type, output );
 
 	}
 
@@ -161,18 +232,42 @@ export default UniformNode;
 /**
  * TSL function for creating a uniform node.
  *
+ * @tsl
  * @function
- * @param {Any} arg1 - The value of this node. Usually a JS primitive or three.js object (vector, matrix, color, texture).
- * @param {String?} arg2 - The node type. If no explicit type is defined, the node tries to derive the type from its value.
+ * @param {any|string} value - The value of this uniform or your type. Usually a JS primitive or three.js object (vector, matrix, color, texture).
+ * @param {string} [type] - The node type. If no explicit type is defined, the node tries to derive the type from its value.
  * @returns {UniformNode}
  */
-export const uniform = ( arg1, arg2 ) => {
+export const uniform = ( value, type ) => {
 
-	const nodeType = getConstNodeType( arg2 || arg1 );
+	const nodeType = getConstNodeType( type || value );
 
-	// @TODO: get ConstNode from .traverse() in the future
-	const value = ( arg1 && arg1.isNode === true ) ? ( arg1.node && arg1.node.value ) || arg1.value : arg1;
+	if ( nodeType === value ) {
 
-	return nodeObject( new UniformNode( value, nodeType ) );
+		// if the value is a type but no having a value
+
+		value = getValueFromType( nodeType );
+
+	}
+
+	if ( value && value.isNode === true ) {
+
+		let v = value.value;
+
+		value.traverse( n => {
+
+			if ( n.isConstNode === true ) {
+
+				v = n.value;
+
+			}
+
+		} );
+
+		value = v;
+
+	}
+
+	return new UniformNode( value, nodeType );
 
 };

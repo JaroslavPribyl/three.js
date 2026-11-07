@@ -12,7 +12,7 @@ const parse = ( source ) => {
 
 	const pragmaMainIndex = source.indexOf( pragmaMain );
 
-	const mainCode = pragmaMainIndex !== - 1 ? source.slice( pragmaMainIndex + pragmaMain.length ) : source;
+	const mainCode = ( pragmaMainIndex !== - 1 ? source.slice( pragmaMainIndex + pragmaMain.length ) : source ).replace( /^(?:\s*\/\/[^\r\n]*|\s*\/\*[\s\S]*?\*\/|\s*)+/, '' );
 
 	const declaration = mainCode.match( declarationRegexp );
 
@@ -95,7 +95,7 @@ const parse = ( source ) => {
 
 	} else {
 
-		throw new Error( 'FunctionNode: Function is not a GLSL code.' );
+		throw new Error( 'THREE.FunctionNode: Function is not a GLSL code.' );
 
 	}
 
@@ -111,7 +111,7 @@ class GLSLNodeFunction extends NodeFunction {
 	/**
 	 * Constructs a new GLSL node function.
 	 *
-	 * @param {String} source - The GLSL source.
+	 * @param {string} source - The GLSL source.
 	 */
 	constructor( source ) {
 
@@ -128,8 +128,8 @@ class GLSLNodeFunction extends NodeFunction {
 	/**
 	 * This method returns the GLSL code of the node function.
 	 *
-	 * @param {String} [name=this.name] - The function's name.
-	 * @return {String} The shader code.
+	 * @param {string} [name=this.name] - The function's name.
+	 * @return {string} The shader code.
 	 */
 	getCode( name = this.name ) {
 

@@ -1,10 +1,9 @@
 import { uniform } from '../core/UniformNode.js';
 import { renderGroup } from '../core/UniformGroupNode.js';
 import { Vector3 } from '../../math/Vector3.js';
+import { Fn, vec4 } from '../tsl/TSLBase.js';
 import { cameraViewMatrix } from './Camera.js';
 import { positionWorld } from './Position.js';
-
-/** @module Lights **/
 
 let uniformsLib;
 
@@ -23,6 +22,7 @@ function getLightData( light ) {
 /**
  * TSL function for getting a shadow matrix uniform node for the given light.
  *
+ * @tsl
  * @function
  * @param {Light} light -The light source.
  * @returns {UniformNode<mat4>} The shadow matrix uniform node.
@@ -31,9 +31,19 @@ export function lightShadowMatrix( light ) {
 
 	const data = getLightData( light );
 
-	return data.shadowMatrix || ( data.shadowMatrix = uniform( 'mat4' ).setGroup( renderGroup ).onRenderUpdate( () => {
+	return data.shadowMatrix || ( data.shadowMatrix = uniform( 'mat4' ).setGroup( renderGroup ).onRenderUpdate( ( frame ) => {
 
-		if ( light.castShadow !== true ) {
+		// normally, shadow matrices are updated in ShadowNode. However, if the shadow matrix is used outside
+		// of shadow rendering (like in ProjectorLightNode), the shadow matrix still requires an update
+
+		if ( light.castShadow !== true || frame.renderer.shadowMap.enabled === false ) {
+
+			if ( light.shadow.camera.coordinateSystem !== frame.camera.coordinateSystem ) {
+
+				light.shadow.camera.coordinateSystem = frame.camera.coordinateSystem;
+				light.shadow.camera.updateProjectionMatrix();
+
+			}
 
 			light.shadow.updateMatrices( light );
 
@@ -49,30 +59,25 @@ export function lightShadowMatrix( light ) {
  * TSL function for getting projected uv coordinates for the given light.
  * Relevant when using maps with spot lights.
  *
+ * @tsl
  * @function
  * @param {Light} light -The light source.
+ * @param {Node<vec3>} [position=positionWorld] -The position to project.
  * @returns {Node<vec3>} The projected uvs.
  */
-export function lightProjectionUV( light ) {
+export function lightProjectionUV( light, position = positionWorld ) {
 
-	const data = getLightData( light );
+	const spotLightCoord = lightShadowMatrix( light ).mul( position );
+	const projectionUV = spotLightCoord.xyz.div( spotLightCoord.w );
 
-	if ( data.projectionUV === undefined ) {
-
-		const spotLightCoord = lightShadowMatrix( light ).mul( positionWorld );
-
-		data.projectionUV = spotLightCoord.xyz.div( spotLightCoord.w );
-
-
-	}
-
-	return data.projectionUV;
+	return projectionUV;
 
 }
 
 /**
  * TSL function for getting the position in world space for the given light.
  *
+ * @tsl
  * @function
  * @param {Light} light -The light source.
  * @returns {UniformNode<vec3>} The light's position in world space.
@@ -88,6 +93,7 @@ export function lightPosition( light ) {
 /**
  * TSL function for getting the light target position in world space for the given light.
  *
+ * @tsl
  * @function
  * @param {Light} light -The light source.
  * @returns {UniformNode<vec3>} The light target position in world space.
@@ -103,28 +109,42 @@ export function lightTargetPosition( light ) {
 /**
  * TSL function for getting the position in view space for the given light.
  *
+ * @tsl
  * @function
- * @param {Light} light -The light source.
- * @returns {UniformNode<vec3>} The light's position in view space.
+ * @param {Light} light - The light source.
+ * @returns {Node<vec3>} The light's position in view space.
  */
 export function lightViewPosition( light ) {
 
 	const data = getLightData( light );
 
-	return data.viewPosition || ( data.viewPosition = uniform( new Vector3() ).setGroup( renderGroup ).onRenderUpdate( ( { camera }, self ) => {
+	return data.viewPosition || ( data.viewPosition = ( Fn( ( { camera } ) => {
 
-		self.value = self.value || new Vector3();
-		self.value.setFromMatrixPosition( light.matrixWorld );
+		// Each sub-camera of an array camera has its own view space.
 
-		self.value.applyMatrix4( camera.matrixWorldInverse );
+		if ( camera.isArrayCamera && camera.cameras.length > 0 ) {
 
-	} ) );
+			return cameraViewMatrix.mul( vec4( lightPosition( light ), 1 ) ).xyz;
+
+		}
+
+		return data.viewPositionUniform || ( data.viewPositionUniform = uniform( new Vector3() ).setGroup( renderGroup ).onRenderUpdate( ( { camera }, self ) => {
+
+			self.value = self.value || new Vector3();
+			self.value.setFromMatrixPosition( light.matrixWorld );
+
+			self.value.applyMatrix4( camera.matrixWorldInverse );
+
+		} ) );
+
+	} ).once() )() );
 
 }
 
 /**
  * TSL function for getting the light target direction for the given light.
  *
+ * @tsl
  * @function
  * @param {Light} light -The light source.
  * @returns {Node<vec3>} The light's target direction.

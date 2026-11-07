@@ -1,7 +1,6 @@
-import { nodeObject } from '../tsl/TSLBase.js';
+import { error } from '../../utils.js';
+import StackTrace from '../core/StackTrace.js';
 import PropertyNode from './PropertyNode.js';
-
-/** @module ParameterNode **/
 
 /**
  * Special version of {@link PropertyNode} which is used for parameters.
@@ -19,8 +18,8 @@ class ParameterNode extends PropertyNode {
 	/**
 	 * Constructs a new parameter node.
 	 *
-	 * @param {String} nodeType - The type of the node.
-	 * @param {String?} [name=null] - The name of the parameter in the shader.
+	 * @param {string} nodeType - The type of the node.
+	 * @param {?string} [name=null] - The name of the parameter in the shader.
 	 */
 	constructor( nodeType, name = null ) {
 
@@ -29,7 +28,7 @@ class ParameterNode extends PropertyNode {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -37,9 +36,39 @@ class ParameterNode extends PropertyNode {
 
 	}
 
+	/**
+	 * Gets the type of a member variable in the parameter node.
+	 *
+	 * @param {NodeBuilder} builder - The node builder.
+	 * @param {string} name - The name of the member variable.
+	 * @returns {string}
+	 */
+	getMemberType( builder, name ) {
+
+		const type = this.getNodeType( builder );
+		const struct = builder.getStructTypeNode( type );
+
+		let memberType;
+
+		if ( struct !== null ) {
+
+			memberType = struct.getMemberType( builder, name );
+
+		} else {
+
+			error( `TSL: Member "${ name }" not found in struct "${ type }".`, new StackTrace() );
+
+			memberType = 'float';
+
+		}
+
+		return memberType;
+
+	}
+
 	getHash() {
 
-		return this.uuid;
+		return String( this.id );
 
 	}
 
@@ -56,9 +85,10 @@ export default ParameterNode;
 /**
  * TSL function for creating a parameter node.
  *
+ * @tsl
  * @function
- * @param {String} type - The type of the node.
- * @param {String?} name - The name of the parameter in the shader.
+ * @param {string} type - The type of the node.
+ * @param {?string} name - The name of the parameter in the shader.
  * @returns {ParameterNode}
  */
-export const parameter = ( type, name ) => nodeObject( new ParameterNode( type, name ) );
+export const parameter = ( type, name ) => new ParameterNode( type, name );

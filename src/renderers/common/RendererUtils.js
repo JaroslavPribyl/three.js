@@ -1,12 +1,11 @@
 import { Color } from '../../math/Color.js';
 
-/** @module RendererUtils **/
-
 /**
  * Saves the state of the given renderer and stores it into the given state object.
  *
  * If not state object is provided, the function creates one.
  *
+ * @private
  * @function
  * @param {Renderer} renderer - The renderer.
  * @param {Object} [state={}] - The state.
@@ -26,6 +25,11 @@ export function saveRendererState( renderer, state = {} ) {
 	state.clearColor = renderer.getClearColor( state.clearColor || new Color() );
 	state.clearAlpha = renderer.getClearAlpha();
 	state.autoClear = renderer.autoClear;
+	state.autoClearColor = renderer.autoClearColor;
+	state.autoClearDepth = renderer.autoClearDepth;
+	state.autoClearStencil = renderer.autoClearStencil;
+	state.opaque = renderer.opaque;
+	state.transparent = renderer.transparent;
 	state.scissorTest = renderer.getScissorTest();
 
 	return state;
@@ -38,6 +42,7 @@ export function saveRendererState( renderer, state = {} ) {
  *
  * If not state object is provided, the function creates one.
  *
+ * @private
  * @function
  * @param {Renderer} renderer - The renderer.
  * @param {Object} [state={}] - The state.
@@ -51,6 +56,11 @@ export function resetRendererState( renderer, state ) {
 	renderer.setRenderObjectFunction( null );
 	renderer.setClearColor( 0x000000, 1 );
 	renderer.autoClear = true;
+	renderer.autoClearColor = true;
+	renderer.autoClearDepth = true;
+	renderer.autoClearStencil = true;
+	renderer.opaque = true;
+	renderer.transparent = true;
 
 	return state;
 
@@ -59,6 +69,7 @@ export function resetRendererState( renderer, state ) {
 /**
  * Restores the state of the given renderer from the given state object.
  *
+ * @private
  * @function
  * @param {Renderer} renderer - The renderer.
  * @param {Object} state - The state to restore.
@@ -74,6 +85,11 @@ export function restoreRendererState( renderer, state ) {
 	renderer.setMRT( state.mrt );
 	renderer.setClearColor( state.clearColor, state.clearAlpha );
 	renderer.autoClear = state.autoClear;
+	renderer.autoClearColor = state.autoClearColor;
+	renderer.autoClearDepth = state.autoClearDepth;
+	renderer.autoClearStencil = state.autoClearStencil;
+	renderer.opaque = state.opaque;
+	renderer.transparent = state.transparent;
 	renderer.setScissorTest( state.scissorTest );
 
 }
@@ -83,6 +99,7 @@ export function restoreRendererState( renderer, state ) {
  *
  * If not state object is provided, the function creates one.
  *
+ * @private
  * @function
  * @param {Scene} scene - The scene.
  * @param {Object} [state={}] - The state.
@@ -104,6 +121,7 @@ export function saveSceneState( scene, state = {} ) {
  *
  * If not state object is provided, the function creates one.
  *
+ * @private
  * @function
  * @param {Scene} scene - The scene.
  * @param {Object} [state={}] - The state.
@@ -124,6 +142,7 @@ export function resetSceneState( scene, state ) {
 /**
  * Restores the state of the given scene from the given state object.
  *
+ * @private
  * @function
  * @param {Scene} scene - The scene.
  * @param {Object} state - The state to restore.
@@ -141,6 +160,7 @@ export function restoreSceneState( scene, state ) {
  *
  * If not state object is provided, the function creates one.
  *
+ * @private
  * @function
  * @param {Renderer} renderer - The renderer.
  * @param {Scene} scene - The scene.
@@ -162,6 +182,7 @@ export function saveRendererAndSceneState( renderer, scene, state = {} ) {
  *
  * If not state object is provided, the function creates one.
  *
+ * @private
  * @function
  * @param {Renderer} renderer - The renderer.
  * @param {Scene} scene - The scene.
@@ -180,6 +201,7 @@ export function resetRendererAndSceneState( renderer, scene, state ) {
 /**
  * Restores the state of the given renderer and scene from the given state object.
  *
+ * @private
  * @function
  * @param {Renderer} renderer - The renderer.
  * @param {Scene} scene - The scene.

@@ -44,37 +44,69 @@ import {
 	VectorKeyframeTrack
 } from 'three';
 
-import * as fflate from '../libs/fflate.module.js';
+import { unzlibSync } from '../libs/fflate.module.js';
 import { NURBSCurve } from '../curves/NURBSCurve.js';
-
-/**
- * Loader loads FBX file and generates Group representing FBX scene.
- * Requires FBX file to be >= 7.0 and in ASCII or >= 6400 in Binary format
- * Versions lower than this may load but will probably have errors
- *
- * Needs Support:
- *  Morph normals / blend shape normals
- *
- * FBX format references:
- * 	https://help.autodesk.com/view/FBX/2017/ENU/?guid=__cpp_ref_index_html (C++ SDK reference)
- *
- * Binary format specification:
- *	https://code.blender.org/2013/08/fbx-binary-file-format-specification/
- */
-
 
 let fbxTree;
 let connections;
 let sceneGraph;
 
+/**
+ * A loader for the FBX format.
+ *
+ * Requires FBX file to be >= 7.0 and in ASCII or >= 6400 in Binary format.
+ * Versions lower than this may load but will probably have errors.
+ *
+ * Needs Support:
+ * - Morph normals / blend shape normals
+ *
+ * FBX format references:
+ * - [C++ SDK reference](https://help.autodesk.com/view/FBX/2017/ENU/?guid=__cpp_ref_index_html)
+ *
+ * Binary format specification:
+ * - [FBX binary file format specification](https://code.blender.org/2013/08/fbx-binary-file-format-specification/)
+ *
+ * ```js
+ * const loader = new FBXLoader();
+ * const object = await loader.loadAsync( 'models/fbx/stanford-bunny.fbx' );
+ * scene.add( object );
+ * ```
+ *
+ * @augments Loader
+ * @three_import import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+ */
 class FBXLoader extends Loader {
 
+	/**
+	 * Constructs a new FBX loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
 	constructor( manager ) {
 
 		super( manager );
 
+		/**
+		 * Whether to trim animation clips to the time range of their
+		 * animation stacks and shift them to start at time zero. Useful
+		 * for assets that define multiple clips on a single timeline.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.trimAnimationClips = false;
+
 	}
 
+	/**
+	 * Starts loading from the given URL and passes the loaded FBX asset
+	 * to the `onLoad()` callback.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(Group)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 */
 	load( url, onLoad, onProgress, onError ) {
 
 		const scope = this;
@@ -82,6 +114,8 @@ class FBXLoader extends Loader {
 		const path = ( scope.path === '' ) ? LoaderUtils.extractUrlBase( url ) : scope.path;
 
 		const loader = new FileLoader( this.manager );
+		loader.setPriority( this.priority );
+		loader.setCache( this.cache );
 		loader.setPath( scope.path );
 		loader.setResponseType( 'arraybuffer' );
 		loader.setRequestHeader( scope.requestHeader );
@@ -113,6 +147,13 @@ class FBXLoader extends Loader {
 
 	}
 
+	/**
+	 * Parses the given FBX data and returns the resulting group.
+	 *
+	 * @param {ArrayBuffer} FBXBuffer - The raw FBX data as an array buffer.
+	 * @param {string} path - The URL base path.
+	 * @return {Group} An object representing the parsed asset.
+	 */
 	parse( FBXBuffer, path ) {
 
 		if ( isFbxFormatBinary( FBXBuffer ) ) {
@@ -142,8 +183,10 @@ class FBXLoader extends Loader {
 		// console.log( fbxTree );
 
 		const textureLoader = new TextureLoader( this.manager ).setPath( this.resourcePath || path ).setCrossOrigin( this.crossOrigin );
+		textureLoader.setPriority( this.priority );
+		textureLoader.setCache( this.cache );
 
-		return new FBXTreeParser( textureLoader, this.manager ).parse( fbxTree );
+		return new FBXTreeParser( textureLoader, this.manager, this.trimAnimationClips ).parse( fbxTree );
 
 	}
 
@@ -152,10 +195,11 @@ class FBXLoader extends Loader {
 // Parse the FBXTree object returned by the BinaryParser or TextParser and return a Group
 class FBXTreeParser {
 
-	constructor( textureLoader, manager ) {
+	constructor( textureLoader, manager, trimAnimationClips ) {
 
 		this.textureLoader = textureLoader;
 		this.manager = manager;
+		this.trimAnimationClips = trimAnimationClips;
 
 	}
 
@@ -319,6 +363,11 @@ class FBXTreeParser {
 				type = 'image/tga';
 				break;
 
+			case 'webp':
+
+				type = 'image/webp';
+				break;
+
 			default:
 
 				console.warn( 'FBXLoader: Image type "' + extension + '" is not supported.' );
@@ -333,7 +382,7 @@ class FBXTreeParser {
 		} else { // Binary Format
 
 			const array = new Uint8Array( content );
-			return window.URL.createObjectURL( new Blob( [ array ], { type: type } ) );
+			return URL.createObjectURL( new Blob( [ array ], { type: type } ) );
 
 		}
 
@@ -408,21 +457,10 @@ class FBXTreeParser {
 	// load a texture specified as a blob or data URI, or via an external URL using TextureLoader
 	loadTexture( textureNode, images ) {
 
-		const nonNativeExtensions = new Set( [ 'tga', 'tif', 'tiff', 'exr', 'dds', 'hdr', 'ktx2' ] );
-
 		const extension = textureNode.FileName.split( '.' ).pop().toLowerCase();
 
-		const loader = nonNativeExtensions.has( extension ) ? this.manager.getHandler( `.${extension}` ) : this.textureLoader;
-
-		if ( ! loader ) {
-
-			console.warn(
-				`FBXLoader: ${extension.toUpperCase()} loader not found, creating placeholder texture for`,
-				textureNode.RelativeFilename
-			);
-			return new Texture();
-
-		}
+		let loader = this.manager.getHandler( `.${extension}` );
+		if ( loader === null ) loader = this.textureLoader;
 
 		const loaderPath = loader.path;
 
@@ -445,6 +483,13 @@ class FBXTreeParser {
 				loader.setPath( undefined );
 
 			}
+
+		}
+
+		if ( fileName === undefined ) {
+
+			console.warn( 'FBXLoader: Undefined filename, creating placeholder texture.' );
+			return new Texture();
 
 		}
 
@@ -539,12 +584,12 @@ class FBXTreeParser {
 
 		if ( materialNode.Diffuse ) {
 
-			parameters.color = ColorManagement.toWorkingColorSpace( new Color().fromArray( materialNode.Diffuse.value ), SRGBColorSpace );
+			parameters.color = ColorManagement.colorSpaceToWorking( new Color().fromArray( materialNode.Diffuse.value ), SRGBColorSpace );
 
 		} else if ( materialNode.DiffuseColor && ( materialNode.DiffuseColor.type === 'Color' || materialNode.DiffuseColor.type === 'ColorRGB' ) ) {
 
 			// The blender exporter exports diffuse here instead of in materialNode.Diffuse
-			parameters.color = ColorManagement.toWorkingColorSpace( new Color().fromArray( materialNode.DiffuseColor.value ), SRGBColorSpace );
+			parameters.color = ColorManagement.colorSpaceToWorking( new Color().fromArray( materialNode.DiffuseColor.value ), SRGBColorSpace );
 
 		}
 
@@ -556,12 +601,12 @@ class FBXTreeParser {
 
 		if ( materialNode.Emissive ) {
 
-			parameters.emissive = ColorManagement.toWorkingColorSpace( new Color().fromArray( materialNode.Emissive.value ), SRGBColorSpace );
+			parameters.emissive = ColorManagement.colorSpaceToWorking( new Color().fromArray( materialNode.Emissive.value ), SRGBColorSpace );
 
 		} else if ( materialNode.EmissiveColor && ( materialNode.EmissiveColor.type === 'Color' || materialNode.EmissiveColor.type === 'ColorRGB' ) ) {
 
 			// The blender exporter exports emissive color here instead of in materialNode.Emissive
-			parameters.emissive = ColorManagement.toWorkingColorSpace( new Color().fromArray( materialNode.EmissiveColor.value ), SRGBColorSpace );
+			parameters.emissive = ColorManagement.colorSpaceToWorking( new Color().fromArray( materialNode.EmissiveColor.value ), SRGBColorSpace );
 
 		}
 
@@ -571,7 +616,8 @@ class FBXTreeParser {
 
 		}
 
-		// the transparency handling is implemented based on Blender/Unity's approach: https://github.com/sobotka/blender-addons/blob/7d80f2f97161fc8e353a657b179b9aa1f8e5280b/io_scene_fbx/import_fbx.py#L1444-L1459
+		// the transparency handling is implemented based on Blender's approach:
+		// https://github.com/blender/blender/blob/main/scripts/addons_core/io_scene_fbx/import_fbx.py
 
 		parameters.opacity = 1 - ( materialNode.TransparencyFactor ? parseFloat( materialNode.TransparencyFactor.value ) : 0 );
 
@@ -581,7 +627,10 @@ class FBXTreeParser {
 
 			if ( parameters.opacity === null ) {
 
-				parameters.opacity = 1 - ( materialNode.TransparentColor ? parseFloat( materialNode.TransparentColor.value[ 0 ] ) : 0 );
+				// Default to opaque. Some exporters (e.g. 3ds Max) define TransparentColor
+				// as white (1,1,1) without intending transparency, which makes the Unity-style
+				// fallback of `1 - TransparentColor.r` produce incorrect zero opacity.
+				parameters.opacity = 1;
 
 			}
 
@@ -607,12 +656,12 @@ class FBXTreeParser {
 
 		if ( materialNode.Specular ) {
 
-			parameters.specular = ColorManagement.toWorkingColorSpace( new Color().fromArray( materialNode.Specular.value ), SRGBColorSpace );
+			parameters.specular = ColorManagement.colorSpaceToWorking( new Color().fromArray( materialNode.Specular.value ), SRGBColorSpace );
 
 		} else if ( materialNode.SpecularColor && materialNode.SpecularColor.type === 'Color' ) {
 
 			// The blender exporter exports specular color here instead of in materialNode.Specular
-			parameters.specular = ColorManagement.toWorkingColorSpace( new Color().fromArray( materialNode.SpecularColor.value ), SRGBColorSpace );
+			parameters.specular = ColorManagement.colorSpaceToWorking( new Color().fromArray( materialNode.SpecularColor.value ), SRGBColorSpace );
 
 		}
 
@@ -794,8 +843,6 @@ class FBXTreeParser {
 				indices: [],
 				weights: [],
 				transformLink: new Matrix4().fromArray( boneNode.TransformLink.a ),
-				// transform: new Matrix4().fromArray( boneNode.Transform.a ),
-				// linkMode: boneNode.Mode,
 
 			};
 
@@ -888,8 +935,6 @@ class FBXTreeParser {
 
 		} );
 
-		this.bindSkeleton( deformers.skeletons, geometryMap, modelMap );
-
 		this.addGlobalSceneSettings();
 
 		sceneGraph.traverse( function ( node ) {
@@ -912,17 +957,94 @@ class FBXTreeParser {
 
 		} );
 
-		const animations = new AnimationParser().parse();
+		// Like Blender's FBX importer, use the BindPose section to set the
+		// rest pose for bones that are not part of a skin cluster. The BindPose
+		// provides a more authoritative rest pose than the Lcl properties which
+		// may represent an animation frame rather than the true rest state.
+		// Bones WITH clusters will get their bind pose from TransformLink
+		// (set via bindSkeleton below), which takes priority.
+		const bindPoseMatrices = this.parsePoseNodes();
+		const clusterBoneIDs = new Set();
+
+		for ( const ID in deformers.skeletons ) {
+
+			deformers.skeletons[ ID ].rawBones.forEach( function ( _, i ) {
+
+				const bone = deformers.skeletons[ ID ].bones[ i ];
+				if ( bone ) clusterBoneIDs.add( bone.ID );
+
+			} );
+
+		}
+
+		const tempMatrix = new Matrix4();
+
+		sceneGraph.traverse( function ( node ) {
+
+			if ( node.isBone && node.ID !== undefined && ! clusterBoneIDs.has( node.ID ) ) {
+
+				const bindPose = bindPoseMatrices[ node.ID ];
+
+				if ( bindPose !== undefined ) {
+
+					if ( node.parent ) {
+
+						tempMatrix.copy( node.parent.matrixWorld ).invert();
+						tempMatrix.multiply( bindPose );
+
+					} else {
+
+						tempMatrix.copy( bindPose );
+
+					}
+
+					tempMatrix.decompose( node.position, node.quaternion, node.scale );
+					node.updateMatrix();
+					node.matrixWorld.copy( bindPose );
+
+				}
+
+			}
+
+		} );
+
+		// Bind skeletons after transforms are applied so that bind matrices
+		// are computed from the final scene state. This ensures the rest pose
+		// is correct even when the FBX file's Cluster TransformLink matrices
+		// differ from the reconstructed bone transforms (common in files
+		// without a BindPose section).
+		this.bindSkeleton( deformers.skeletons, geometryMap, modelMap );
+
+		const animations = new AnimationParser( this.trimAnimationClips ).parse();
 
 		// if all the models where already combined in a single group, just return that
 		if ( sceneGraph.children.length === 1 && sceneGraph.children[ 0 ].isGroup ) {
 
 			sceneGraph.children[ 0 ].animations = animations;
+			Object.assign( sceneGraph.children[ 0 ].userData, sceneGraph.userData );
 			sceneGraph = sceneGraph.children[ 0 ];
 
 		}
 
 		sceneGraph.animations = animations;
+
+		// Apply coordinate system correction. FBX files can use different
+		// up-axis conventions (Y-up or Z-up). Three.js uses Y-up, so rotate
+		// the scene when the file uses Z-up (UpAxis === 2).
+
+		if ( 'GlobalSettings' in fbxTree && 'UpAxis' in fbxTree.GlobalSettings ) {
+
+			const upAxis = fbxTree.GlobalSettings.UpAxis.value;
+
+			if ( upAxis === 2 ) {
+
+				console.warn( 'THREE.FBXLoader: You are loading an asset with a Z-UP coordinate system. The loader just rotates the asset to transform it into Y-UP. The vertex data are not converted.' );
+
+				sceneGraph.rotation.set( - Math.PI / 2, 0, 0 );
+
+			}
+
+		}
 
 	}
 
@@ -1011,7 +1133,7 @@ class FBXTreeParser {
 						skeleton.bones[ i ] = bone;
 
 						// In cases where a bone is shared between multiple meshes
-						// duplicate the bone here and and it as a child of the first bone
+						// duplicate the bone here and add it as a child of the first bone
 						if ( subBone !== null ) {
 
 							bone.add( subBone );
@@ -1163,7 +1285,7 @@ class FBXTreeParser {
 
 			if ( lightAttribute.Color !== undefined ) {
 
-				color = ColorManagement.toWorkingColorSpace( new Color().fromArray( lightAttribute.Color.value ), SRGBColorSpace );
+				color = ColorManagement.colorSpaceToWorking( new Color().fromArray( lightAttribute.Color.value ), SRGBColorSpace );
 
 			}
 
@@ -1206,21 +1328,24 @@ class FBXTreeParser {
 
 				case 2: // Spot
 					let angle = Math.PI / 3;
-
-					if ( lightAttribute.InnerAngle !== undefined ) {
-
-						angle = MathUtils.degToRad( lightAttribute.InnerAngle.value );
-
-					}
-
 					let penumbra = 0;
+
 					if ( lightAttribute.OuterAngle !== undefined ) {
 
-						// TODO: this is not correct - FBX calculates outer and inner angle in degrees
-						// with OuterAngle > InnerAngle && OuterAngle <= Math.PI
-						// while three.js uses a penumbra between (0, 1) to attenuate the inner angle
-						penumbra = MathUtils.degToRad( lightAttribute.OuterAngle.value );
-						penumbra = Math.max( penumbra, 1 );
+						angle = MathUtils.degToRad( lightAttribute.OuterAngle.value );
+
+						if ( lightAttribute.InnerAngle !== undefined ) {
+
+							penumbra = 1 - ( lightAttribute.InnerAngle.value / lightAttribute.OuterAngle.value );
+							penumbra = Math.max( 0, penumbra ); // penumbra must be in the range [0,1]
+
+						}
+
+					} else if ( lightAttribute.InnerAngle !== undefined ) {
+
+						// fallback if only InnerAngle is defined
+
+						angle = MathUtils.degToRad( lightAttribute.InnerAngle.value );
 
 					}
 
@@ -1295,6 +1420,35 @@ class FBXTreeParser {
 				material.vertexColors = true;
 
 			} );
+
+		}
+
+		// Sanitization: If geometry has groups, then it must match the provided material array.
+		// If not, we need to clean up the `group.materialIndex` properties inside the groups and point at a (new) default material.
+		// This isn't well defined; Unity creates default material, while Blender implicitly uses the previous material in the list.
+		if ( geometry.groups.length > 0 ) {
+
+			let needsDefaultMaterial = false;
+
+			for ( let i = 0, il = geometry.groups.length; i < il; i ++ ) {
+
+				const group = geometry.groups[ i ];
+
+				if ( group.materialIndex < 0 || group.materialIndex >= materials.length ) {
+
+					group.materialIndex = materials.length;
+					needsDefaultMaterial = true;
+
+				}
+
+			}
+
+			if ( needsDefaultMaterial ) {
+
+				const defaultMaterial = new MeshPhongMaterial();
+				materials.push( defaultMaterial );
+
+			}
 
 		}
 
@@ -1401,11 +1555,29 @@ class FBXTreeParser {
 
 	bindSkeleton( skeletons, geometryMap, modelMap ) {
 
-		const bindMatrices = this.parsePoseNodes();
-
 		for ( const ID in skeletons ) {
 
 			const skeleton = skeletons[ ID ];
+
+			// Compute bone inverses from TransformLink rather than from the
+			// bones' current matrixWorld. The TransformLink matrices represent
+			// each bone's global transform at the time the skin weights were
+			// painted, which may differ from the scene-reconstructed transforms.
+			const boneInverses = [];
+
+			for ( let i = 0, l = skeleton.bones.length; i < l; i ++ ) {
+
+				const inverse = new Matrix4();
+
+				if ( skeleton.bones[ i ] && skeleton.rawBones[ i ] ) {
+
+					inverse.copy( skeleton.rawBones[ i ].transformLink ).invert();
+
+				}
+
+				boneInverses.push( inverse );
+
+			}
 
 			const parents = connections.get( parseInt( skeleton.ID ) ).parents;
 
@@ -1422,7 +1594,16 @@ class FBXTreeParser {
 
 							const model = modelMap.get( geoConnParent.ID );
 
-							model.bind( new Skeleton( skeleton.bones ), bindMatrices[ geoConnParent.ID ] );
+							// Use the mesh's current matrixWorld as bind matrix.
+							// The BindPose section is intentionally not used here
+							// since it may contain scale/rotation from the model
+							// hierarchy that is inconsistent with the TransformLink-
+							// based bone inverses. Always provide a bind matrix to
+							// prevent bind() from calling calculateInverses() which
+							// would overwrite the bone inverses computed above.
+							model.updateMatrixWorld( true );
+
+							model.bind( new Skeleton( skeleton.bones, boneInverses ), model.matrixWorld );
 
 						}
 
@@ -1436,6 +1617,7 @@ class FBXTreeParser {
 
 	}
 
+	// Parse BindPose nodes and return a map of node ID to bind matrix.
 	parsePoseNodes() {
 
 		const bindMatrices = {};
@@ -1556,11 +1738,9 @@ class GeometryParser {
 
 			case 'Mesh':
 				return this.parseMeshGeometry( relationships, geoNode, deformers );
-				break;
 
 			case 'NurbsCurve':
 				return this.parseNurbsGeometry( geoNode );
-				break;
 
 		}
 
@@ -1725,7 +1905,7 @@ class GeometryParser {
 		geoInfo.vertexPositions = ( geoNode.Vertices !== undefined ) ? geoNode.Vertices.a : [];
 		geoInfo.vertexIndices = ( geoNode.PolygonVertexIndex !== undefined ) ? geoNode.PolygonVertexIndex.a : [];
 
-		if ( geoNode.LayerElementColor ) {
+		if ( geoNode.LayerElementColor && geoNode.LayerElementColor[ 0 ].Colors ) {
 
 			geoInfo.color = this.parseVertexColors( geoNode.LayerElementColor[ 0 ] );
 
@@ -2200,6 +2380,13 @@ class GeometryParser {
 		parentGeo.morphAttributes.position = [];
 		// parentGeo.morphAttributes.normal = []; // not implemented
 
+		// Morph attribute positions are stored as deltas (morphTargetsRelative = true), so the
+		// translation component of the geometric transform must not be applied to them — only the
+		// rotation/scale part. Otherwise every delta gets the geometric translation added, which
+		// shifts morphed vertices away from their intended position by `weight * translation` as
+		// the influence increases.
+		const morphPreTransform = preTransform.clone().setPosition( 0, 0, 0 );
+
 		const scope = this;
 		morphTargets.forEach( function ( morphTarget ) {
 
@@ -2209,7 +2396,7 @@ class GeometryParser {
 
 				if ( morphGeoNode !== undefined ) {
 
-					scope.genMorphGeometry( parentGeo, parentGeoNode, morphGeoNode, preTransform, rawTarget.name );
+					scope.genMorphGeometry( parentGeo, parentGeoNode, morphGeoNode, morphPreTransform, rawTarget.name );
 
 				}
 
@@ -2332,7 +2519,7 @@ class GeometryParser {
 		for ( let i = 0, c = new Color(); i < buffer.length; i += 4 ) {
 
 			c.fromArray( buffer, i );
-			ColorManagement.toWorkingColorSpace( c, SRGBColorSpace );
+			ColorManagement.colorSpaceToWorking( c, SRGBColorSpace );
 			c.toArray( buffer, i );
 
 		}
@@ -2442,6 +2629,12 @@ class GeometryParser {
 
 // parse animation data from FBXTree
 class AnimationParser {
+
+	constructor( trimAnimationClips ) {
+
+		this.trimAnimationClips = trimAnimationClips;
+
+	}
 
 	// take raw animation clips and turn them into three.js animation clips
 	parse() {
@@ -2604,11 +2797,15 @@ class AnimationParser {
 
 							if ( layerCurveNodes[ i ] === undefined ) {
 
-								const modelID = connections.get( child.ID ).parents.filter( function ( parent ) {
+								const filteredParents = connections.get( child.ID ).parents.filter( function ( parent ) {
 
 									return parent.relationship !== undefined;
 
-								} )[ 0 ].ID;
+								} );
+
+								if ( filteredParents.length === 0 ) return;
+
+								const modelID = filteredParents[ 0 ].ID;
 
 								if ( modelID !== undefined ) {
 
@@ -2637,7 +2834,13 @@ class AnimationParser {
 
 											node.transform = child.matrix;
 
-											if ( child.userData.transformData ) node.eulerOrder = child.userData.transformData.eulerOrder;
+											if ( child.userData.transformData ) {
+
+												node.eulerOrder = child.userData.transformData.eulerOrder;
+
+												if ( child.userData.transformData.rotation ) node.initialRotation = child.userData.transformData.rotation;
+
+											}
 
 										}
 
@@ -2662,11 +2865,15 @@ class AnimationParser {
 
 							if ( layerCurveNodes[ i ] === undefined ) {
 
-								const deformerID = connections.get( child.ID ).parents.filter( function ( parent ) {
+								const filteredParents = connections.get( child.ID ).parents.filter( function ( parent ) {
 
 									return parent.relationship !== undefined;
 
-								} )[ 0 ].ID;
+								} );
+
+								if ( filteredParents.length === 0 ) return;
+
+								const deformerID = filteredParents[ 0 ].ID;
 
 								const morpherID = connections.get( deformerID ).parents[ 0 ].ID;
 								const geoID = connections.get( morpherID ).parents[ 0 ].ID;
@@ -2706,7 +2913,7 @@ class AnimationParser {
 	}
 
 	// parse nodes in FBXTree.Objects.AnimationStack. These are the top level node in the animation
-	// hierarchy. Each Stack node will be used to create a AnimationClip
+	// hierarchy. Each Stack node will be used to create an AnimationClip
 	parseAnimStacks( layersMap ) {
 
 		const rawStacks = fbxTree.Objects.AnimationStack;
@@ -2727,11 +2934,14 @@ class AnimationParser {
 			}
 
 			const layer = layersMap.get( children[ 0 ].ID );
+			const rawStack = rawStacks[ nodeID ];
 
 			rawClips[ nodeID ] = {
 
-				name: rawStacks[ nodeID ].attrName,
+				name: rawStack.attrName,
 				layer: layer,
+				localStart: rawStack.LocalStart !== undefined ? convertFBXTimeToSeconds( Number( rawStack.LocalStart.value ) ) : 0,
+				localStop: rawStack.LocalStop !== undefined ? convertFBXTimeToSeconds( Number( rawStack.LocalStop.value ) ) : 0,
 
 			};
 
@@ -2752,7 +2962,62 @@ class AnimationParser {
 
 		} );
 
+		if ( this.trimAnimationClips === true && rawClip.localStop > rawClip.localStart ) {
+
+			tracks = this.trimTracks( tracks, rawClip.localStart, rawClip.localStop );
+
+		}
+
 		return new AnimationClip( rawClip.name, - 1, tracks );
+
+	}
+
+	// trims the given tracks to the time range [ startTime, endTime ] and shifts
+	// them so they start at time zero. tracks without keyframes in the range are discarded
+	trimTracks( tracks, startTime, endTime ) {
+
+		// track times are stored as float32 so compare against float32 boundaries
+		// to keep keyframes lying exactly on the range limits
+
+		const start = Math.fround( startTime );
+		const end = Math.fround( endTime );
+
+		const trimmedTracks = [];
+
+		for ( let i = 0; i < tracks.length; i ++ ) {
+
+			const track = tracks[ i ];
+			const stride = track.getValueSize();
+
+			const times = [];
+			const values = [];
+
+			for ( let j = 0; j < track.times.length; j ++ ) {
+
+				const time = track.times[ j ];
+
+				if ( time < start || time > end ) continue;
+
+				times.push( time - start );
+
+				for ( let k = 0; k < stride; k ++ ) {
+
+					values.push( track.values[ j * stride + k ] );
+
+				}
+
+			}
+
+			if ( times.length === 0 ) continue;
+
+			track.times = new Float32Array( times );
+			track.values = new Float32Array( values );
+
+			trimmedTracks.push( track );
+
+		}
+
+		return trimmedTracks;
 
 	}
 
@@ -2777,7 +3042,7 @@ class AnimationParser {
 
 		if ( rawTracks.R !== undefined && Object.keys( rawTracks.R.curves ).length > 0 ) {
 
-			const rotationTrack = this.generateRotationTrack( rawTracks.modelName, rawTracks.R.curves, rawTracks.preRotation, rawTracks.postRotation, rawTracks.eulerOrder );
+			const rotationTrack = this.generateRotationTrack( rawTracks.modelName, rawTracks.R.curves, rawTracks.preRotation, rawTracks.postRotation, rawTracks.eulerOrder, rawTracks.initialRotation );
 			if ( rotationTrack !== undefined ) tracks.push( rotationTrack );
 
 		}
@@ -2809,17 +3074,33 @@ class AnimationParser {
 
 	}
 
-	generateRotationTrack( modelName, curves, preRotation, postRotation, eulerOrder ) {
+	generateRotationTrack( modelName, curves, preRotation, postRotation, eulerOrder, initialRotation ) {
 
 		let times;
 		let values;
 
-		if ( curves.x !== undefined && curves.y !== undefined && curves.z !== undefined ) {
+		if ( curves.x !== undefined || curves.y !== undefined || curves.z !== undefined ) {
 
-			const result = this.interpolateRotations( curves.x, curves.y, curves.z, eulerOrder );
+			// Get merged, sorted, unique times from all available curves
+			const mergedTimes = this.getTimesForAllAxes( curves );
 
-			times = result[ 0 ];
-			values = result[ 1 ];
+			if ( mergedTimes.length > 0 ) {
+
+				const initialRot = initialRotation || [ 0, 0, 0 ];
+
+				// Synchronize all curves to the merged time array.
+				// Missing axes are filled with constant values from the initial rotation (Lcl Rotation).
+				// Existing curves at different times are linearly interpolated.
+				const syncX = this.synchronizeCurve( curves.x, mergedTimes, initialRot[ 0 ] );
+				const syncY = this.synchronizeCurve( curves.y, mergedTimes, initialRot[ 1 ] );
+				const syncZ = this.synchronizeCurve( curves.z, mergedTimes, initialRot[ 2 ] );
+
+				const result = this.interpolateRotations( syncX, syncY, syncZ, eulerOrder );
+
+				times = result[ 0 ];
+				values = result[ 1 ];
+
+			}
 
 		}
 
@@ -2851,7 +3132,7 @@ class AnimationParser {
 
 		const quaternionValues = [];
 
-		if ( ! values || ! times ) return new QuaternionKeyframeTrack( modelName + '.quaternion', [ 0 ], [ 0 ] );
+		if ( ! values || ! times ) return undefined;
 
 		for ( let i = 0; i < values.length; i += 3 ) {
 
@@ -3004,6 +3285,62 @@ class AnimationParser {
 
 	}
 
+	// Synchronize a curve to a target time array using linear interpolation.
+	// If the curve is undefined (axis not animated), returns constant values from initialValue.
+	synchronizeCurve( curve, targetTimes, initialValue ) {
+
+		if ( curve === undefined ) {
+
+			return { times: targetTimes, values: targetTimes.map( () => initialValue ) };
+
+		}
+
+		// If the curve already has the same number of keyframes as the target, assume times match
+		if ( curve.times.length === targetTimes.length ) return curve;
+
+		// Linearly interpolate curve values at each target time
+		const values = [];
+
+		for ( let i = 0; i < targetTimes.length; i ++ ) {
+
+			values.push( this.sampleCurveValue( curve, targetTimes[ i ], initialValue ) );
+
+		}
+
+		return { times: targetTimes, values: values };
+
+	}
+
+	// Sample a single value from a curve at a given time using linear interpolation
+	sampleCurveValue( curve, time, initialValue ) {
+
+		const times = curve.times;
+		const values = curve.values;
+
+		// Before first keyframe
+		if ( time <= times[ 0 ] ) return values[ 0 ];
+
+		// After last keyframe
+		if ( time >= times[ times.length - 1 ] ) return values[ values.length - 1 ];
+
+		// Find surrounding keyframes and linearly interpolate
+		for ( let i = 0; i < times.length - 1; i ++ ) {
+
+			if ( time >= times[ i ] && time <= times[ i + 1 ] ) {
+
+				if ( times[ i ] === time ) return values[ i ];
+
+				const alpha = ( time - times[ i ] ) / ( times[ i + 1 ] - times[ i ] );
+				return values[ i ] * ( 1 - alpha ) + values[ i + 1 ] * alpha;
+
+			}
+
+		}
+
+		return initialValue;
+
+	}
+
 	// Rotations are defined as Euler angles which can have values  of any size
 	// These will be converted to quaternions which don't support values greater than
 	// PI, so we'll interpolate large rotations
@@ -3073,7 +3410,7 @@ class AnimationParser {
 				const Q2 = new Quaternion().setFromEuler( E2 );
 
 				// Check unroll
-				if ( Q1.dot( Q2 ) ) {
+				if ( Q1.dot( Q2 ) < 0 ) {
 
 					Q2.set( - Q2.x, - Q2.y, - Q2.z, - Q2.w );
 
@@ -3740,7 +4077,7 @@ class BinaryParser {
 
 				}
 
-				const data = fflate.unzlibSync( new Uint8Array( reader.getArrayBuffer( compressedLength ) ) );
+				const data = unzlibSync( new Uint8Array( reader.getArrayBuffer( compressedLength ) ) );
 				const reader2 = new BinaryReader( data.buffer );
 
 				switch ( type ) {

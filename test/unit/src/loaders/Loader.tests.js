@@ -1,5 +1,3 @@
-/* global QUnit */
-
 import { Loader } from '../../../../src/loaders/Loader.js';
 
 import { LoadingManager } from '../../../../src/loaders/LoadingManager.js';
@@ -7,6 +5,18 @@ import { LoadingManager } from '../../../../src/loaders/LoadingManager.js';
 export default QUnit.module( 'Loaders', () => {
 
 	QUnit.module( 'Loader', () => {
+
+		QUnit.test( 'request settings', ( assert ) => {
+
+			const loader = new Loader();
+			assert.strictEqual( loader.priority, 'auto' );
+			assert.strictEqual( loader.cache, 'default' );
+			assert.strictEqual( loader.setPriority( 'high' ), loader );
+			assert.strictEqual( loader.setCache( 'no-store' ), loader );
+			assert.strictEqual( loader.priority, 'high' );
+			assert.strictEqual( loader.cache, 'no-store' );
+
+		} );
 
 		// INSTANCING
 		QUnit.test( 'Instancing', ( assert ) => {
@@ -65,55 +75,6 @@ export default QUnit.module( 'Loaders', () => {
 			const actual = new Loader().requestHeader;
 			const expected = {};
 			assert.deepEqual( actual, expected, 'Loader defines requestHeader.' );
-
-		} );
-
-		// PUBLIC
-		QUnit.todo( 'load', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'loadAsync', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'parse', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'setCrossOrigin', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'setWithCredentials', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'setPath', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'setResourcePath', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
-
-		} );
-
-		QUnit.todo( 'setRequestHeader', ( assert ) => {
-
-			assert.ok( false, 'everything\'s gonna be alright' );
 
 		} );
 

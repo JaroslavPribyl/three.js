@@ -15,6 +15,7 @@ let _rendererState;
  *
  * @abstract
  * @augments PassNode
+ * @three_import import { StereoCompositePassNode } from 'three/addons/tsl/display/StereoCompositePassNode.js';
  */
 class StereoCompositePassNode extends PassNode {
 
@@ -37,7 +38,7 @@ class StereoCompositePassNode extends PassNode {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -49,11 +50,13 @@ class StereoCompositePassNode extends PassNode {
 		 * @type {StereoCamera}
 		 */
 		this.stereo = new StereoCamera();
+
 		const _params = { minFilter: LinearFilter, magFilter: NearestFilter, type: HalfFloatType };
 
 		/**
 		 * The render target for rendering the left eye's view.
 		 *
+		 * @private
 		 * @type {RenderTarget}
 		 */
 		this._renderTargetL = new RenderTarget( 1, 1, _params );
@@ -61,6 +64,7 @@ class StereoCompositePassNode extends PassNode {
 		/**
 		 * The render target for rendering the right eye's view.
 		 *
+		 * @private
 		 * @type {RenderTarget}
 		 */
 		this._renderTargetR = new RenderTarget( 1, 1, _params );
@@ -68,6 +72,7 @@ class StereoCompositePassNode extends PassNode {
 		/**
 		 * A texture node representing the left's eye view.
 		 *
+		 * @private
 		 * @type {TextureNode}
 		 */
 		this._mapLeft = texture( this._renderTargetL.texture );
@@ -75,6 +80,7 @@ class StereoCompositePassNode extends PassNode {
 		/**
 		 * A texture node representing the right's eye view.
 		 *
+		 * @private
 		 * @type {TextureNode}
 		 */
 		this._mapRight = texture( this._renderTargetR.texture );
@@ -83,7 +89,9 @@ class StereoCompositePassNode extends PassNode {
 		 * The node material that implements the composite. All
 		 * derived effect passes must provide an instance for rendering.
 		 *
-		 * @type {NodeMaterial}
+		 * @private
+		 * @type {?NodeMaterial}
+		 * @default null
 		 */
 		this._material = null;
 
@@ -92,7 +100,7 @@ class StereoCompositePassNode extends PassNode {
 	/**
 	 * Updates the internal stereo camera.
 	 *
-	 * @param {Number} coordinateSystem - The current coordinate system.
+	 * @param {number} coordinateSystem - The current coordinate system.
 	 */
 	updateStereoCamera( coordinateSystem ) {
 
@@ -105,8 +113,8 @@ class StereoCompositePassNode extends PassNode {
 	/**
 	 * Sets the size of the pass.
 	 *
-	 * @param {Number} width - The width of the pass.
-	 * @param {Number} height - The height of the pass.
+	 * @param {number} width - The width of the pass.
+	 * @param {number} height - The height of the pass.
 	 */
 	setSize( width, height ) {
 
@@ -131,11 +139,9 @@ class StereoCompositePassNode extends PassNode {
 
 		//
 
-		this._pixelRatio = renderer.getPixelRatio();
-
 		this.updateStereoCamera( renderer.coordinateSystem );
 
-		const size = renderer.getSize( _size );
+		const size = renderer.getDrawingBufferSize( _size );
 		this.setSize( size.width, size.height );
 
 		// left

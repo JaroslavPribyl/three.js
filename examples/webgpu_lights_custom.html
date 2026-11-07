@@ -3,12 +3,24 @@
 		<title>three.js webgpu - custom lighting model</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<link type="text/css" rel="stylesheet" href="main.css">
+		<meta property="og:title" content="three.js webgpu - custom lighting model">
+		<meta property="og:type" content="website">
+		<meta property="og:url" content="https://threejs.org/examples/webgpu_lights_custom.html">
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/webgpu_lights_custom.jpg">
+		<link type="text/css" rel="stylesheet" href="example.css">
 	</head>
 	<body>
 
 		<div id="info">
-			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgpu - custom lighting model
+			<a href="https://threejs.org/" target="_blank" rel="noopener" class="logo-link"></a>
+
+			<div class="title-wrapper">
+				<a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a><span>Custom Lighting Model</span>
+			</div>
+
+			<small>
+				Custom lighting model with selective lights.
+			</small>
 		</div>
 
 		<script type="importmap">
@@ -24,14 +36,14 @@
 
 		<script type="module">
 
-			import * as THREE from 'three';
+			import * as THREE from 'three/webgpu';
 			import { color, lights } from 'three/tsl';
 
 			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 			class CustomLightingModel extends THREE.LightingModel {
 
-				direct( { lightColor, reflectedLight }, stack ) {
+				direct( { lightColor, reflectedLight }/*, builder */ ) {
 
 					reflectedLight.directDiffuse.addAssign( lightColor );
 
@@ -51,6 +63,7 @@
 				camera.position.z = 1.5;
 
 				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0x000000 );
 
 				// lights
 
@@ -85,7 +98,7 @@
 
 				const points = [];
 
-				for ( let i = 0; i < 500_000; i ++ ) {
+				for ( let i = 0; i < 500000; i ++ ) {
 
 					const point = new THREE.Vector3().random().subScalar( 0.5 ).multiplyScalar( 3 );
 					points.push( point );

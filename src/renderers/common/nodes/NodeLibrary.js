@@ -1,3 +1,5 @@
+import { warn, warnOnce } from '../../../utils.js';
+
 /**
  * The purpose of a node library is to assign node implementations
  * to existing library features. In `WebGPURenderer` lights, materials
@@ -14,16 +16,9 @@ class NodeLibrary {
 	constructor() {
 
 		/**
-		 * A weak map that maps lights to light nodes.
-		 *
-		 * @type {WeakMap<Light.constructor,AnalyticLightNode.constructor>}
-		 */
-		this.lightNodes = new WeakMap();
-
-		/**
 		 * A map that maps materials to node materials.
 		 *
-		 * @type {Map<String,NodeMaterial.constructor>}
+		 * @type {Map<string,NodeMaterial.constructor>}
 		 */
 		this.materialNodes = new Map();
 
@@ -31,7 +26,7 @@ class NodeLibrary {
 		 * A map that maps tone mapping techniques (constants)
 		 * to tone mapping node functions.
 		 *
-		 * @type {Map<Number,Function>}
+		 * @type {Map<number,Function>}
 		 */
 		this.toneMappingNodes = new Map();
 
@@ -75,7 +70,7 @@ class NodeLibrary {
 	 * Adds a tone mapping node function for a tone mapping technique (constant).
 	 *
 	 * @param {Function} toneMappingNode - The tone mapping node function.
-	 * @param {Number} toneMapping - The tone mapping.
+	 * @param {number} toneMapping - The tone mapping.
 	 */
 	addToneMapping( toneMappingNode, toneMapping ) {
 
@@ -86,8 +81,8 @@ class NodeLibrary {
 	/**
 	 * Returns a tone mapping node function for a tone mapping technique (constant).
 	 *
-	 * @param {Number} toneMapping - The tone mapping.
-	 * @return {Function?} The tone mapping node function. Returns `null` if no node function is found.
+	 * @param {number} toneMapping - The tone mapping.
+	 * @return {?Function} The tone mapping node function. Returns `null` if no node function is found.
 	 */
 	getToneMappingFunction( toneMapping ) {
 
@@ -98,8 +93,8 @@ class NodeLibrary {
 	/**
 	 * Returns a node material class definition for a material type.
 	 *
-	 * @param {String} materialType - The material type.
-	 * @return {NodeMaterial.constructor?} The node material class definition. Returns `null` if no node material is found.
+	 * @param {string} materialType - The material type.
+	 * @return {?NodeMaterial.constructor} The node material class definition. Returns `null` if no node material is found.
 	 */
 	getMaterialNodeClass( materialType ) {
 
@@ -111,7 +106,7 @@ class NodeLibrary {
 	 * Adds a node material class definition for a given material type.
 	 *
 	 * @param {NodeMaterial.constructor} materialNodeClass - The node material class definition.
-	 * @param {String} materialClassType - The material type.
+	 * @param {string} materialClassType - The material type.
 	 */
 	addMaterial( materialNodeClass, materialClassType ) {
 
@@ -122,70 +117,53 @@ class NodeLibrary {
 	/**
 	 * Returns a light node class definition for a light class definition.
 	 *
-	 * @param {Light.constructor} light - The light class definition.
-	 * @return {AnalyticLightNode.constructor?} The light node class definition. Returns `null` if no light node is found.
+	 * @deprecated since r187. Use `Light.registerNode()` to assign light node classes instead.
+	 * @param {Light.constructor} lightClass - The light class definition.
+	 * @return {?AnalyticLightNode.constructor} The light node class definition. Returns `null` if no light node is found.
 	 */
-	getLightNodeClass( light ) {
+	getLightNodeClass( lightClass ) {
 
-		return this.lightNodes.get( light ) || null;
+		warnOnce( 'NodeLibrary: "getLightNodeClass()" has been deprecated. Use "Light.registerNode()" to assign light node classes instead.' ); // @deprecated r187
+
+		return lightClass.prototype._lightNode || null;
 
 	}
 
 	/**
 	 * Adds a light node class definition for a given light class definition.
 	 *
+	 * @deprecated since r187. Use `Light.registerNode()` instead.
 	 * @param {AnalyticLightNode.constructor} lightNodeClass - The light node class definition.
 	 * @param {Light.constructor} lightClass - The light class definition.
 	 */
 	addLight( lightNodeClass, lightClass ) {
 
-		this.addClass( lightNodeClass, lightClass, this.lightNodes );
+		warnOnce( 'NodeLibrary: "addLight()" has been deprecated. Use "Light.registerNode()" instead.' ); // @deprecated r187
+
+		lightClass.registerNode( lightNodeClass );
 
 	}
 
 	/**
 	 * Adds a node class definition for the given type to the provided type library.
 	 *
-	 * @param {Any} nodeClass - The node class definition.
-	 * @param {Number|String} type - The object type.
-	 * @param {Map} library - The type library.
+	 * @param {Node.constructor} nodeClass - The node class definition.
+	 * @param {number|string} type - The object type.
+	 * @param {Map<number|string,Node.constructor>} library - The type library.
 	 */
 	addType( nodeClass, type, library ) {
 
 		if ( library.has( type ) ) {
 
-			console.warn( `Redefinition of node ${ type }` );
+			warn( `Redefinition of node ${ type }` );
 			return;
 
 		}
 
-		if ( typeof nodeClass !== 'function' ) throw new Error( `Node class ${ nodeClass.name } is not a class.` );
-		if ( typeof type === 'function' || typeof type === 'object' ) throw new Error( `Base class ${ type } is not a class.` );
+		if ( typeof nodeClass !== 'function' ) throw new Error( `THREE.NodeLibrary: Node class ${ nodeClass.name } is not a class.` );
+		if ( typeof type === 'function' || typeof type === 'object' ) throw new Error( `THREE.NodeLibrary: Base class ${ type } is not a class.` );
 
 		library.set( type, nodeClass );
-
-	}
-
-	/**
-	 * Adds a node class definition for the given class definition to the provided type library.
-	 *
-	 * @param {Any} nodeClass - The node class definition.
-	 * @param {Any} baseClass - The class definition.
-	 * @param {WeakMap} library - The type library.
-	 */
-	addClass( nodeClass, baseClass, library ) {
-
-		if ( library.has( baseClass ) ) {
-
-			console.warn( `Redefinition of node ${ baseClass.name }` );
-			return;
-
-		}
-
-		if ( typeof nodeClass !== 'function' ) throw new Error( `Node class ${ nodeClass.name } is not a class.` );
-		if ( typeof baseClass !== 'function' ) throw new Error( `Base class ${ baseClass.name } is not a class.` );
-
-		library.set( baseClass, nodeClass );
 
 	}
 

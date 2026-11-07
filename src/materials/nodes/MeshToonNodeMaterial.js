@@ -6,7 +6,7 @@ import { MeshToonMaterial } from '../MeshToonMaterial.js';
 const _defaultValues = /*@__PURE__*/ new MeshToonMaterial();
 
 /**
- * Node material version of `MeshToonMaterial`.
+ * Node material version of {@link MeshToonMaterial}.
  *
  * @augments NodeMaterial
  */
@@ -21,7 +21,7 @@ class MeshToonNodeMaterial extends NodeMaterial {
 	/**
 	 * Constructs a new mesh toon node material.
 	 *
-	 * @param {Object?} parameters - The configuration parameter.
+	 * @param {Object} [parameters] - The configuration parameter.
 	 */
 	constructor( parameters ) {
 
@@ -30,7 +30,7 @@ class MeshToonNodeMaterial extends NodeMaterial {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -39,10 +39,23 @@ class MeshToonNodeMaterial extends NodeMaterial {
 		/**
 		 * Set to `true` because toon materials react on lights.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default true
 		 */
 		this.lights = true;
+
+		/**
+		 * The emissive color of toon materials is by default inferred from the `emissive`,
+		 * `emissiveIntensity` and `emissiveMap` properties. This node property allows to
+		 * overwrite the default and define the emissive color with a node instead.
+		 *
+		 * If you don't want to overwrite the emissive color but modify the existing
+		 * value instead, use {@link materialEmissive}.
+		 *
+		 * @type {?Node<vec3>}
+		 * @default null
+		 */
+		this.emissiveNode = null;
 
 		this.setDefaultValues( _defaultValues );
 

@@ -1,12 +1,39 @@
 import { Fn, vec2 } from '../tsl/TSLBase.js';
 import { rotate } from './RotateNode.js';
+import { context } from '../core/ContextNode.js';
 
-/** @module UVUtils **/
+/**
+ * Replaces the default UV coordinates used in texture lookups.
+ *
+ * ```js
+ *material.contextNode = replaceDefaultUV( ( textureNode ) => {
+ *
+ *	// ...
+ *	return customUVCoordinates;
+ *
+ *} );
+ *```
+ *
+ * @tsl
+ * @function
+ * @param {function(Node):Node<vec2>|Node<vec2>} callback - A callback that receives the texture node
+ * and must return the new uv coordinates.
+ * @param {Node} [node=null] - An optional node to which the context will be applied.
+ * @return {ContextNode} A context node that replaces the default UV coordinates.
+ */
+export function replaceDefaultUV( callback, node = null ) {
+
+	const getUV = typeof callback === 'function' ? callback : () => callback;
+
+	return context( node, { getUV } );
+
+}
 
 /**
  * Rotates the given uv coordinates around a center point
  *
- * @method
+ * @tsl
+ * @function
  * @param {Node<vec2>} uv - The uv coordinates.
  * @param {Node<float>} rotation - The rotation defined in radians.
  * @param {Node<vec2>} center - The center of rotation
@@ -16,12 +43,13 @@ export const rotateUV = /*@__PURE__*/ Fn( ( [ uv, rotation, center = vec2( 0.5 )
 
 	return rotate( uv.sub( center ), rotation ).add( center );
 
-} );
+}, { uv: 'vec2', rotation: 'float', center: 'vec2', return: 'vec2' } );
 
 /**
  * Applies a spherical warping effect to the given uv coordinates.
  *
- * @method
+ * @tsl
+ * @function
  * @param {Node<vec2>} uv - The uv coordinates.
  * @param {Node<float>} strength - The strength of the effect.
  * @param {Node<vec2>} center - The center point
@@ -36,4 +64,4 @@ export const spherizeUV = /*@__PURE__*/ Fn( ( [ uv, strength, center = vec2( 0.5
 
 	return uv.add( delta.mul( deltaOffset ) );
 
-} );
+}, { uv: 'vec2', strength: 'float', center: 'vec2', return: 'vec2' } );

@@ -1,16 +1,15 @@
-import { Vector2, TempNode, NodeUpdateType } from 'three/webgpu';
-import { nodeObject, Fn, uv, uniform, convertToTexture, vec2, vec3, vec4, mat3, luminance, add } from 'three/tsl';
-
-/** @module SobelOperatorNode **/
+import { Vector2, Node, NodeUpdateType } from 'three/webgpu';
+import { Fn, uv, uniform, convertToTexture, vec2, vec3, vec4, mat3, luminance, add } from 'three/tsl';
 
 /**
  * Post processing node for detecting edges with a sobel filter.
  * A sobel filter should be applied after tone mapping and output color
  * space conversion.
  *
- * @augments TempNode
+ * @augments Node
+ * @three_import import { sobel } from 'three/addons/tsl/display/SobelOperatorNode.js';
  */
-class SobelOperatorNode extends TempNode {
+class SobelOperatorNode extends Node {
 
 	static get type() {
 
@@ -38,7 +37,7 @@ class SobelOperatorNode extends TempNode {
 		 * The `updateBeforeType` is set to `NodeUpdateType.FRAME` since the node updates
 		 * its internal uniforms once per frame in `updateBefore()`.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default 'frame'
 		 */
 		this.updateBeforeType = NodeUpdateType.FRAME;
@@ -161,8 +160,9 @@ export default SobelOperatorNode;
 /**
  * TSL function for creating a sobel operator node which performs edge detection with a sobel filter.
  *
+ * @tsl
  * @function
  * @param {Node<vec4>} node - The node that represents the input of the effect.
  * @returns {SobelOperatorNode}
  */
-export const sobel = ( node ) => nodeObject( new SobelOperatorNode( convertToTexture( node ) ) );
+export const sobel = ( node ) => new SobelOperatorNode( convertToTexture( node ) );

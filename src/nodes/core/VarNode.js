@@ -1,7 +1,6 @@
 import Node from './Node.js';
 import { addMethodChaining, nodeProxy } from '../tsl/TSLCore.js';
-
-/** @module VarNode **/
+import { error } from '../../utils.js';
 
 /**
  * Class for representing shader variables as nodes. Variables are created from
@@ -25,8 +24,8 @@ class VarNode extends Node {
 	 * Constructs a new variable node.
 	 *
 	 * @param {Node} node - The node for which a variable should be created.
-	 * @param {String?} name - The name of the variable in the shader.
-	 * @param {Boolean?} readOnly - The read-only flag.
+	 * @param {?string} [name=null] - The name of the variable in the shader.
+	 * @param {boolean} [readOnly=false] - The read-only flag.
 	 */
 	constructor( node, name = null, readOnly = false ) {
 
@@ -43,7 +42,7 @@ class VarNode extends Node {
 		 * The name of the variable in the shader. If no name is defined,
 		 * the node system auto-generates one.
 		 *
-		 * @type {String?}
+		 * @type {?string}
 		 * @default null
 		 */
 		this.name = name;
@@ -51,7 +50,7 @@ class VarNode extends Node {
 		/**
 		 * `VarNode` sets this property to `true` by default.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default true
 		 */
 		this.global = true;
@@ -59,7 +58,7 @@ class VarNode extends Node {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -69,16 +68,61 @@ class VarNode extends Node {
 		 *
 		 * The read-only flag.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default false
 		 */
 		this.readOnly = readOnly;
 
+		/**
+		 *
+		 * Add this flag to the node system to indicate that this node require parents.
+		 *
+		 * @type {boolean}
+		 * @default true
+		 */
+		this.parents = true;
+
+		/**
+		 * Whether this node can be generated as an expression until it is assigned.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.assignable = false;
+
 	}
 
-	getHash( builder ) {
+	isCacheable( /*builder*/ ) {
 
-		return this.name || super.getHash( builder );
+		return false;
+
+	}
+
+	/**
+	 * Sets the assignable flag for this node.
+	 *
+	 * An assignable node is generated as an expression until it is assigned,
+	 * at which point it is declared as a variable.
+	 *
+	 * @param {boolean} value - The value to set for the assignable flag.
+	 * @returns {VarNode} This node.
+	 */
+	setAssignable( value ) {
+
+		this.assignable = value;
+
+		return this;
+
+	}
+
+	/**
+	 * Returns the assignable flag of this node.
+	 *
+	 * @return {boolean} The assignable flag.
+	 */
+	getAssignable() {
+
+		return this.assignable;
 
 	}
 
@@ -94,54 +138,98 @@ class VarNode extends Node {
 
 	}
 
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
 		return this.node.getNodeType( builder );
+
+	}
+
+	getArrayCount( builder ) {
+
+		return this.node.getArrayCount( builder );
+
+	}
+
+	_declaresAssignable() {
+
+		return false;
+
+	}
+
+	_isFunctionScope() {
+
+		// see `generate()`, a read-only or local variable is declared where it is generated
+		return this.readOnly === false && this.assignable === false;
+
+	}
+
+	build( builder, output = null ) {
+
+		this._setupInspector( builder );
+
+		const refNode = this.getShared( builder );
+
+		if ( this !== refNode ) {
+
+			return refNode.build( builder, output );
+
+		}
+
+		const data = builder.getDataFromNode( this );
+
+		this._updateAssignable( builder, data, this.node );
+
+		// An assignable node that is not assigned is just its value.
+		if ( this.assignable && data.forceDeclaration !== true && data.assign !== true ) {
+
+			return this.node.build( builder, output );
+
+		}
+
+		return super.build( builder, output );
 
 	}
 
 	generate( builder ) {
 
 		const { node, name, readOnly } = this;
-		const { renderer } = builder;
 
-		const isWebGPUBackend = renderer.backend.isWebGPUBackend === true;
+		const nodeType = this.getNodeType( builder );
 
-		let isDeterministic = false;
-		let shouldTreatAsReadOnly = false;
+		if ( nodeType == 'void' ) {
 
-		if ( readOnly ) {
+			if ( this.isAssignable( builder ) !== true ) {
 
-			isDeterministic = builder.isDeterministic( node );
+				error( 'TSL: ".toVar()" can not be used with void type.', this.stackTrace );
 
-			shouldTreatAsReadOnly = isWebGPUBackend ? readOnly : isDeterministic;
+			}
+
+			const snippet = node.build( builder );
+
+			return snippet;
 
 		}
 
-		const vectorType = builder.getVectorType( this.getNodeType( builder ) );
+		const vectorType = builder.getVectorType( nodeType );
 		const snippet = node.build( builder, vectorType );
 
-		const nodeVar = builder.getVarFromNode( this, name, vectorType, undefined, shouldTreatAsReadOnly );
+		const nodeVar = builder.getVarFromNode( this, name, vectorType, undefined, readOnly, this.assignable );
 
 		const propertyName = builder.getPropertyName( nodeVar );
 
 		let declarationPrefix = propertyName;
 
-		if ( shouldTreatAsReadOnly ) {
+		if ( nodeVar.readOnly ) {
 
-			if ( isWebGPUBackend ) {
+			const count = node.getArrayCount( builder );
 
-				declarationPrefix = isDeterministic
-					? `const ${ propertyName }`
-					: `let ${ propertyName }`;
+			declarationPrefix = builder.isDeterministic( node )
+				? builder.generateConstStatement( nodeVar.type, propertyName, count )
+				: builder.generateLetStatement( nodeVar.type, propertyName, count );
 
-			} else {
+		} else if ( nodeVar.local ) {
 
-				const count = builder.getArrayCount( node );
-
-				declarationPrefix = `const ${ builder.getVar( nodeVar.type, propertyName, count ) }`;
-
-			}
+			declarationPrefix = builder.generateVarStatement( nodeVar.type, propertyName, nodeVar.count );
 
 		}
 
@@ -158,9 +246,10 @@ export default VarNode;
 /**
  * TSL function for creating a var node.
  *
+ * @tsl
  * @function
  * @param {Node} node - The node for which a variable should be created.
- * @param {String?} name - The name of the variable in the shader.
+ * @param {?string} name - The name of the variable in the shader.
  * @returns {VarNode}
  */
 const createVar = /*@__PURE__*/ nodeProxy( VarNode );
@@ -168,44 +257,26 @@ const createVar = /*@__PURE__*/ nodeProxy( VarNode );
 /**
  * TSL function for creating a var node.
  *
+ * @tsl
  * @function
  * @param {Node} node - The node for which a variable should be created.
- * @param {String?} name - The name of the variable in the shader.
+ * @param {?string} name - The name of the variable in the shader.
  * @returns {VarNode}
  */
-export const Var = ( node, name = null ) => createVar( node, name ).append();
+export const Var = ( node, name = null ) => createVar( node, name ).toStack();
 
 /**
  * TSL function for creating a const node.
  *
+ * @tsl
  * @function
  * @param {Node} node - The node for which a constant should be created.
- * @param {String?} name - The name of the constant in the shader.
+ * @param {?string} name - The name of the constant in the shader.
  * @returns {VarNode}
  */
-export const Const = ( node, name = null ) => createVar( node, name, true ).append();
+export const Const = ( node, name = null ) => createVar( node, name, true ).toStack();
 
 // Method chaining
 
 addMethodChaining( 'toVar', Var );
 addMethodChaining( 'toConst', Const );
-
-// Deprecated
-
-/**
- * @function
- * @deprecated since r170. Use `Var( node )` or `node.toVar()` instead.
- *
- * @param {Any} node
- * @returns {VarNode}
- */
-export const temp = ( node ) => { // @deprecated, r170
-
-	console.warn( 'TSL: "temp( node )" is deprecated. Use "Var( node )" or "node.toVar()" instead.' );
-
-	return createVar( node );
-
-};
-
-addMethodChaining( 'temp', temp );
-

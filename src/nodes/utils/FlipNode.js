@@ -1,4 +1,4 @@
-import TempNode from '../core/TempNode.js';
+import Node from '../core/Node.js';
 import { vectorComponents } from '../core/constants.js';
 
 /**
@@ -14,9 +14,9 @@ import { vectorComponents } from '../core/constants.js';
  * uvNode = uvNode.flipY();
  * ```
  *
- * @augments TempNode
+ * @augments Node
  */
-class FlipNode extends TempNode {
+class FlipNode extends Node {
 
 	static get type() {
 
@@ -28,7 +28,7 @@ class FlipNode extends TempNode {
 	 * Constructs a new flip node.
 	 *
 	 * @param {Node} sourceNode - The node which component(s) should be flipped.
-	 * @param {String} components - The components that should be flipped e.g. `'x'` or `'xy'`.
+	 * @param {string} components - The components that should be flipped e.g. `'x'` or `'xy'`.
 	 */
 	constructor( sourceNode, components ) {
 
@@ -44,7 +44,7 @@ class FlipNode extends TempNode {
 		/**
 		 * The components that should be flipped e.g. `'x'` or `'xy'`.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 */
 		this.components = components;
 
@@ -54,9 +54,9 @@ class FlipNode extends TempNode {
 	 * This method is overwritten since the node type is inferred from the source node.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The node type.
+	 * @return {string} The node type.
 	 */
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
 		return this.sourceNode.getNodeType( builder );
 

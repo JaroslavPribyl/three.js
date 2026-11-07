@@ -18,10 +18,13 @@ import {
 	LineSegments,
 	Loader,
 	LoaderUtils,
+	MathUtils,
 	Mesh,
 	MeshBasicMaterial,
 	MeshPhongMaterial,
 	Object3D,
+	OrthographicCamera,
+	PerspectiveCamera,
 	Points,
 	PointsMaterial,
 	Quaternion,
@@ -36,15 +39,40 @@ import {
 } from 'three';
 import chevrotain from '../libs/chevrotain.module.min.js';
 
-
+/**
+ * A loader for the VRML format.
+ *
+ * ```js
+ * const loader = new VRMLLoader();
+ * const object = await loader.loadAsync( 'models/vrml/house.wrl' );
+ * scene.add( object );
+ * ```
+ *
+ * @augments Loader
+ * @three_import import { VRMLLoader } from 'three/addons/loaders/VRMLLoader.js';
+ */
 class VRMLLoader extends Loader {
 
+	/**
+	 * Constructs a new VRML loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
 	constructor( manager ) {
 
 		super( manager );
 
 	}
 
+	/**
+	 * Starts loading from the given URL and passes the loaded VRML asset
+	 * to the `onLoad()` callback.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(Scene)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 */
 	load( url, onLoad, onProgress, onError ) {
 
 		const scope = this;
@@ -52,6 +80,8 @@ class VRMLLoader extends Loader {
 		const path = ( scope.path === '' ) ? LoaderUtils.extractUrlBase( url ) : scope.path;
 
 		const loader = new FileLoader( scope.manager );
+		loader.setPriority( scope.priority );
+		loader.setCache( scope.cache );
 		loader.setPath( scope.path );
 		loader.setRequestHeader( scope.requestHeader );
 		loader.setWithCredentials( scope.withCredentials );
@@ -81,6 +111,13 @@ class VRMLLoader extends Loader {
 
 	}
 
+	/**
+	 * Parses the given VRML data and returns the resulting scene.
+	 *
+	 * @param {string} data - The raw VRML data as a string.
+	 * @param {string} path - The URL base path.
+	 * @return {Scene} The parsed scene.
+	 */
 	parse( data, path ) {
 
 		const nodeMap = {};
@@ -134,6 +171,7 @@ class VRMLLoader extends Loader {
 			const nodeTypes = [
 				'Anchor', 'Billboard', 'Collision', 'Group', 'Transform', // grouping nodes
 				'Inline', 'LOD', 'Switch', // special groups
+				'PerspectiveCamera', 'OrthographicCamera',
 				'AudioClip', 'DirectionalLight', 'PointLight', 'Script', 'Shape', 'Sound', 'SpotLight', 'WorldInfo', // common nodes
 				'CylinderSensor', 'PlaneSensor', 'ProximitySensor', 'SphereSensor', 'TimeSensor', 'TouchSensor', 'VisibilitySensor', // sensors
 				'Box', 'Cone', 'Cylinder', 'ElevationGrid', 'Extrusion', 'IndexedFaceSet', 'IndexedLineSet', 'PointSet', 'Sphere', // geometries
@@ -184,7 +222,7 @@ class VRMLLoader extends Loader {
 
 			//
 
-			const StringLiteral = createToken( { name: 'StringLiteral', pattern: /"(?:[^\\"\n\r]|\\[bfnrtv"\\/]|\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])*"/ } );
+			const StringLiteral = createToken( { name: 'StringLiteral', pattern: /"(?:[^\\"]|\\[bfnrtv"\\/]|\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])*"/ } );
 			const HexLiteral = createToken( { name: 'HexLiteral', pattern: /0[xX][0-9a-fA-F]+/ } );
 			const NumberLiteral = createToken( { name: 'NumberLiteral', pattern: /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/ } );
 			const TrueLiteral = createToken( { name: 'TrueLiteral', pattern: /TRUE/ } );
@@ -699,6 +737,11 @@ class VRMLLoader extends Loader {
 
 				case 'WorldInfo':
 					build = buildWorldInfoNode( node );
+					break;
+
+				case 'OrthographicCamera':
+				case 'PerspectiveCamera':
+					build = buildCamera( node, nodeName );
 					break;
 
 				case 'Billboard':
@@ -1553,6 +1596,74 @@ class VRMLLoader extends Loader {
 			}
 
 			return worldInfo;
+
+		}
+
+		function buildCamera( node, type ) {
+
+			const camera = ( type === 'PerspectiveCamera' ) ? new PerspectiveCamera() : new OrthographicCamera();
+
+			const width = ( typeof window !== 'undefined' ) ? window.innerWidth : 1;
+			const height = ( typeof window !== 'undefined' ) ? window.innerHeight : 1;
+			const aspect = width / height;
+
+			const fields = node.fields;
+
+			for ( let i = 0, l = fields.length; i < l; i ++ ) {
+
+				const field = fields[ i ];
+				const fieldName = field.name;
+				const fieldValues = field.values;
+
+				switch ( fieldName ) {
+
+					case 'position':
+						camera.position.set( fieldValues[ 0 ], fieldValues[ 1 ], fieldValues[ 0 ] );
+						break;
+
+					case 'orientation':
+						const axis = new Vector3( fieldValues[ 0 ], fieldValues[ 1 ], fieldValues[ 2 ] ).normalize();
+						const angle = fieldValues[ 3 ];
+						camera.quaternion.setFromAxisAngle( axis, angle );
+						break;
+
+					case 'focalDistance':
+						camera.userData.focalDistance = fieldValues[ 0 ]; // might be useful for DoF
+						break;
+
+					case 'heightAngle':
+
+						// for perspective cams only
+
+						camera.fov = MathUtils.radToDeg( fieldValues[ 0 ] );
+						camera.aspect = aspect;
+						camera.updateProjectionMatrix();
+
+						break;
+
+					case 'height':
+
+						// for ortho cams only
+
+						const halfHeight = fieldValues[ 0 ] / 2;
+						const halfWidth = halfHeight * aspect;
+
+						camera.left = - halfWidth;
+						camera.right = halfWidth;
+						camera.top = halfHeight;
+						camera.bottom = - halfHeight;
+						camera.updateProjectionMatrix();
+						break;
+
+					default:
+						console.warn( 'THREE.VRMLLoader: Unknown field:', fieldName );
+						break;
+
+				}
+
+			}
+
+			return camera;
 
 		}
 
@@ -3109,7 +3220,7 @@ class VRMLLoader extends Loader {
 
 				color.fromBufferAttribute( attribute, i );
 
-				ColorManagement.toWorkingColorSpace( color, SRGBColorSpace );
+				ColorManagement.colorSpaceToWorking( color, SRGBColorSpace );
 
 				attribute.setXYZ( i, color.r, color.g, color.b );
 
@@ -3135,8 +3246,8 @@ class VRMLLoader extends Loader {
 		 *
 		 * @param {BufferGeometry} geometry
 		 * @param {number} radius
-		 * @param {array} angles
-		 * @param {array} colors
+		 * @param {Array} angles
+		 * @param {Array} colors
 		 * @param {boolean} topDown - Whether to work top down or bottom up.
 		 */
 		function paintFaces( geometry, radius, angles, colors, topDown ) {
@@ -3216,7 +3327,7 @@ class VRMLLoader extends Loader {
 
 				color.copy( colorA ).lerp( colorB, t );
 
-				ColorManagement.toWorkingColorSpace( color, SRGBColorSpace );
+				ColorManagement.colorSpaceToWorking( color, SRGBColorSpace );
 
 				colorAttribute.setXYZ( index, color.r, color.g, color.b );
 
@@ -3229,6 +3340,8 @@ class VRMLLoader extends Loader {
 		//
 
 		const textureLoader = new TextureLoader( this.manager );
+		textureLoader.setPriority( this.priority );
+		textureLoader.setCache( this.cache );
 		textureLoader.setPath( this.resourcePath || path ).setCrossOrigin( this.crossOrigin );
 
 		// check version (only 2.0 is supported)

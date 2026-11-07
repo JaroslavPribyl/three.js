@@ -6,7 +6,22 @@ import { Vector2 } from '../../math/Vector2.js';
 import { Vector3 } from '../../math/Vector3.js';
 import { Vector4 } from '../../math/Vector4.js';
 
-/** @module NodeUtils **/
+import {
+	IntType,
+	UnsignedIntType,
+	AlphaFormat,
+	RedFormat,
+	RedIntegerFormat,
+	RGFormat,
+	RGIntegerFormat,
+	RGBFormat,
+	RGBIntegerFormat,
+	DepthFormat,
+	DepthStencilFormat
+} from '../../constants.js';
+
+import { error } from '../../utils.js';
+import StackTrace from '../core/StackTrace.js';
 
 // cyrb53 (c) 2018 bryc (github.com/bryc). License: Public domain. Attribution appreciated.
 // A fast and simple 64-bit (or 53-bit) string hash function with decent collision resistance.
@@ -17,7 +32,7 @@ function cyrb53( value, seed = 0 ) {
 
 	let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
 
-	if ( value instanceof Array ) {
+	if ( Array.isArray( value ) ) {
 
 		for ( let i = 0, val; i < value.length; i ++ ) {
 
@@ -51,114 +66,32 @@ function cyrb53( value, seed = 0 ) {
 /**
  * Computes a hash for the given string.
  *
+ * @private
  * @method
- * @param {String} str - The string to be hashed.
- * @return {Number} The hash.
+ * @param {string} str - The string to be hashed.
+ * @return {number} The hash.
  */
 export const hashString = ( str ) => cyrb53( str );
 
 /**
  * Computes a hash for the given array.
  *
+ * @private
  * @method
- * @param {Array<Number>} array - The array to be hashed.
- * @return {Number} The hash.
+ * @param {Array<number>} array - The array to be hashed.
+ * @return {number} The hash.
  */
 export const hashArray = ( array ) => cyrb53( array );
 
 /**
  * Computes a hash for the given list of parameters.
  *
+ * @private
  * @method
- * @param {...Number} params - A list of parameters.
- * @return {Number} The hash.
+ * @param {...number} params - A list of parameters.
+ * @return {number} The hash.
  */
 export const hash = ( ...params ) => cyrb53( params );
-
-/**
- * Computes a cache key for the given node.
- *
- * @method
- * @param {Object} object - The object to be hashed.
- * @param {Boolean} [force=false] - Whether to force a cache key computation or not.
- * @return {Number} The hash.
- */
-export function getCacheKey( object, force = false ) {
-
-	const values = [];
-
-	if ( object.isNode === true ) {
-
-		values.push( object.id );
-		object = object.getSelf();
-
-	}
-
-	for ( const { property, childNode } of getNodeChildren( object ) ) {
-
-		values.push( cyrb53( property.slice( 0, - 4 ) ), childNode.getCacheKey( force ) );
-
-	}
-
-	return cyrb53( values );
-
-}
-
-/**
- * This generator function can be used to iterate over the node children
- * of the given object.
- *
- * @generator
- * @param {Object} node - The object to be hashed.
- * @param {Boolean} [toJSON=false] - Whether to return JSON or not.
- * @yields {Object} A result node holding the property, index (if available) and the child node.
- */
-export function* getNodeChildren( node, toJSON = false ) {
-
-	for ( const property in node ) {
-
-		// Ignore private properties.
-		if ( property.startsWith( '_' ) === true ) continue;
-
-		const object = node[ property ];
-
-		if ( Array.isArray( object ) === true ) {
-
-			for ( let i = 0; i < object.length; i ++ ) {
-
-				const child = object[ i ];
-
-				if ( child && ( child.isNode === true || toJSON && typeof child.toJSON === 'function' ) ) {
-
-					yield { property, index: i, childNode: child };
-
-				}
-
-			}
-
-		} else if ( object && object.isNode === true ) {
-
-			yield { property, childNode: object };
-
-		} else if ( typeof object === 'object' ) {
-
-			for ( const subProperty in object ) {
-
-				const child = object[ subProperty ];
-
-				if ( child && ( child.isNode === true || toJSON && typeof child.toJSON === 'function' ) ) {
-
-					yield { property, index: subProperty, childNode: child };
-
-				}
-
-			}
-
-		}
-
-	}
-
-}
 
 const typeFromLength = /*@__PURE__*/ new Map( [
 	[ 1, 'float' ],
@@ -174,9 +107,10 @@ const dataFromObject = /*@__PURE__*/ new WeakMap();
 /**
  * Returns the data type for the given the length.
  *
+ * @private
  * @method
- * @param {Number} length - The length.
- * @return {String} The data type.
+ * @param {number} length - The length.
+ * @return {string} The data type.
  */
 export function getTypeFromLength( length ) {
 
@@ -187,8 +121,9 @@ export function getTypeFromLength( length ) {
 /**
  * Returns the typed array for the given data type.
  *
+ * @private
  * @method
- * @param {String} type - The data type.
+ * @param {string} type - The data type.
  * @return {TypedArray} The typed array.
  */
 export function getTypedArrayFromType( type ) {
@@ -220,13 +155,14 @@ export function getTypedArrayFromType( type ) {
 /**
  * Returns the length for the given data type.
  *
+ * @private
  * @method
- * @param {String} type - The data type.
- * @return {Number} The length.
+ * @param {string} type - The data type.
+ * @return {number} The length.
  */
 export function getLengthFromType( type ) {
 
-	if ( /float|int|uint/.test( type ) ) return 1;
+	if ( /float|int|uint|bool/.test( type ) ) return 1;
 	if ( /vec2/.test( type ) ) return 2;
 	if ( /vec3/.test( type ) ) return 3;
 	if ( /vec4/.test( type ) ) return 4;
@@ -234,16 +170,61 @@ export function getLengthFromType( type ) {
 	if ( /mat3/.test( type ) ) return 9;
 	if ( /mat4/.test( type ) ) return 16;
 
-	console.error( 'THREE.TSL: Unsupported type:', type );
+	error( `TSL: Unsupported type: ${ type }`, new StackTrace() );
+
+}
+
+/**
+ * Returns the gpu memory length for the given data type in 4-byte elements.
+ *
+ * @private
+ * @method
+ * @param {string} type - The data type.
+ * @return {number} The memory length in 4-byte elements.
+ */
+export function getMemoryLengthFromType( type ) {
+
+	if ( /float|int|uint|bool/.test( type ) ) return 1;
+	if ( /vec2/.test( type ) ) return 2;
+	if ( /vec3/.test( type ) ) return 3;
+	if ( /vec4/.test( type ) ) return 4;
+	if ( /mat2/.test( type ) ) return 4;
+	if ( /mat3/.test( type ) ) return 12;
+	if ( /mat4/.test( type ) ) return 16;
+
+	error( `TSL: Unsupported type: ${ type }`, new StackTrace() );
+
+}
+
+/**
+ * Returns the alignment requirement for the given data type in 4-byte elements.
+ *
+ * @private
+ * @method
+ * @param {string} type - The data type.
+ * @return {number} The alignment requirement in 4-byte elements.
+ */
+export function getAlignmentFromType( type ) {
+
+	if ( /float|int|uint|bool/.test( type ) ) return 1;
+	if ( /vec2/.test( type ) ) return 2;
+	if ( /vec3/.test( type ) ) return 4;
+	if ( /vec4/.test( type ) ) return 4;
+	if ( /mat2/.test( type ) ) return 2;
+	if ( /mat3/.test( type ) ) return 4;
+	if ( /mat4/.test( type ) ) return 4;
+
+	error( `TSL: Unsupported type: ${ type }`, new StackTrace() );
 
 }
 
 /**
  * Returns the data type for the given value.
  *
+ * @private
  * @method
- * @param {Any} value - The value.
- * @return {String?} The data type.
+ * @param {any} value - The value.
+ * @return {?string} The data type.
  */
 export function getValueType( value ) {
 
@@ -310,12 +291,81 @@ export function getValueType( value ) {
 }
 
 /**
+ * Returns the node data type for the given texture.
+ *
+ * @private
+ * @method
+ * @param {Texture} texture - The texture.
+ * @return {string} The data type.
+ */
+export function getTextureType( texture ) {
+
+	if ( texture.isDepthTexture === true ) {
+
+		return 'float';
+
+	}
+
+	const format = texture.format;
+
+	let length;
+
+	if ( format === RedFormat || format === RedIntegerFormat || format === DepthFormat || format === DepthStencilFormat || format === AlphaFormat ) {
+
+		length = 1;
+
+	} else if ( format === RGFormat || format === RGIntegerFormat ) {
+
+		length = 2;
+
+	} else if ( format === RGBFormat || format === RGBIntegerFormat ) {
+
+		length = 3;
+
+	} else {
+
+		length = 4;
+
+	}
+
+	let componentType;
+
+	if ( texture.type === UnsignedIntType ) {
+
+		componentType = 'uint';
+
+	} else if ( texture.type === IntType ) {
+
+		componentType = 'int';
+
+	} else {
+
+		componentType = 'float';
+
+	}
+
+	if ( length === 1 ) return componentType;
+
+	let baseType = getTypeFromLength( length );
+
+	if ( componentType !== 'float' ) {
+
+		baseType = componentType[ 0 ] + baseType;
+
+	}
+
+	return baseType;
+
+}
+
+/**
  * Returns the value/object for the given data type and parameters.
  *
+ * @private
  * @method
- * @param {String} type - The given type.
- * @param {...Any} params - A parameter list.
- * @return {Any} The value/object.
+ * @param {string} type - The given type.
+ * @param {...any} params - A parameter list.
+ * @return {any} The value/object.
  */
 export function getValueFromType( type, ...params ) {
 
@@ -382,6 +432,7 @@ export function getValueFromType( type, ...params ) {
 /**
  * Gets the object data that can be shared between different rendering steps.
  *
+ * @private
  * @param {Object} object - The object to get the data for.
  * @return {Object} The object data.
  */
@@ -403,9 +454,10 @@ export function getDataFromObject( object ) {
 /**
  * Converts the given array buffer to a Base64 string.
  *
+ * @private
  * @method
  * @param {ArrayBuffer} arrayBuffer - The array buffer.
- * @return {String} The Base64 string.
+ * @return {string} The Base64 string.
  */
 export function arrayBufferToBase64( arrayBuffer ) {
 
@@ -424,14 +476,46 @@ export function arrayBufferToBase64( arrayBuffer ) {
 }
 
 /**
+ * Merges the given node build contexts into a new context, the data of the source context takes precedence.
+ * The node overrides of both contexts are merged as well, so the overrides of the target context still
+ * apply unless the source context overrides the same node.
+ *
+ * @private
+ * @method
+ * @param {Object} target - The context to merge into, e.g. the outer context.
+ * @param {Object} source - The context to merge, e.g. the inner context.
+ * @return {Object} The merged context.
+ */
+export function mergeContext( target, source ) {
+
+	const context = { ...target, ...source };
+
+	if ( target.overrideNodes !== undefined && source.overrideNodes !== undefined && target.overrideNodes !== source.overrideNodes ) {
+
+		context.overrideNodes = new Map( [ ...target.overrideNodes, ...source.overrideNodes ] );
+
+	}
+
+	return context;
+
+}
+
+/**
  * Converts the given Base64 string to an array buffer.
  *
+ * @private
  * @method
- * @param {String} base64 - The Base64 string.
+ * @param {string} base64 - The Base64 string.
  * @return {ArrayBuffer} The array buffer.
  */
 export function base64ToArrayBuffer( base64 ) {
 
 	return Uint8Array.from( atob( base64 ), c => c.charCodeAt( 0 ) ).buffer;
+
+}
+
+export function isArrayAsParameter( params ) {
+
+	return ( params[ 0 ] !== undefined && params[ 0 ] !== null ) && ( params[ 0 ].isNode || Object.getPrototypeOf( params[ 0 ] ) !== Object.prototype );
 
 }

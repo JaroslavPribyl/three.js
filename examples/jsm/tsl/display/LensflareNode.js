@@ -1,7 +1,5 @@
-import { RenderTarget, Vector2, TempNode, NodeUpdateType, QuadMesh, RendererUtils, NodeMaterial } from 'three/webgpu';
-import { convertToTexture, nodeObject, Fn, passTexture, uv, vec2, vec3, vec4, max, float, sub, int, Loop, fract, pow, distance } from 'three/tsl';
-
-/** @module LensflareNode **/
+import { RenderTarget, Vector2, Node, NodeUpdateType, QuadMesh, RendererUtils, NodeMaterial } from 'three/webgpu';
+import { convertToTexture, nodeObject, Fn, passTexture, uv, vec2, vec3, vec4, max, float, sub, int, Loop, fract, pow, distance, context } from 'three/tsl';
 
 const _quadMesh = /*@__PURE__*/ new QuadMesh();
 const _size = /*@__PURE__*/ new Vector2();
@@ -15,9 +13,10 @@ let _rendererState;
  * - {@link https://john-chapman-graphics.blogspot.com/2013/02/pseudo-lens-flare.html}.
  * - {@link https://john-chapman.github.io/2017/11/05/pseudo-lens-flare.html}.
  *
- * @augments TempNode
+ * @augments Node
+ * @three_import import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
  */
-class LensflareNode extends TempNode {
+class LensflareNode extends Node {
 
 	static get type() {
 
@@ -31,11 +30,11 @@ class LensflareNode extends TempNode {
 	 * @param {TextureNode} textureNode - The texture node that represents the scene's bloom.
 	 * @param {Object} params - The parameter object for configuring the effect.
 	 * @param {Node<vec3> | Color} [params.ghostTint=vec3(1, 1, 1)] - Defines the tint of the flare/ghosts.
-	 * @param {Node<float> | Number} [params.threshold=float(0.5)] - Controls the size and strength of the effect. A higher threshold results in smaller flares.
-	 * @param {Node<float> | Number} [params.ghostSamples=float(4)] - Represents the number of flares/ghosts per bright spot which pivot around the center.
-	 * @param {Node<float> | Number} [params.ghostSpacing=float(0.25)] - Defines the spacing of the flares/ghosts.
-	 * @param {Node<float> | Number} [params.ghostAttenuationFactor=float(25)] - Defines the attenuation factor of flares/ghosts.
-	 * @param {Number} [params.downSampleRatio=4] - Defines how downsampling since the effect is usually not rendered at full resolution.
+	 * @param {Node<float> | number} [params.threshold=float(0.5)] - Controls the size and strength of the effect. A higher threshold results in smaller flares.
+	 * @param {Node<float> | number} [params.ghostSamples=float(4)] - Represents the number of flares/ghosts per bright spot which pivot around the center.
+	 * @param {Node<float> | number} [params.ghostSpacing=float(0.25)] - Defines the spacing of the flares/ghosts.
+	 * @param {Node<float> | number} [params.ghostAttenuationFactor=float(25)] - Defines the attenuation factor of flares/ghosts.
+	 * @param {number} [params.downSampleRatio=4] - Defines how downsampling since the effect is usually not rendered at full resolution.
 	 */
 	constructor( textureNode, params = {} ) {
 
@@ -95,7 +94,7 @@ class LensflareNode extends TempNode {
 		/**
 		 * Defines how downsampling since the effect is usually not rendered at full resolution.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 */
 		this.downSampleRatio = downSampleRatio;
 
@@ -103,7 +102,7 @@ class LensflareNode extends TempNode {
 		 * The `updateBeforeType` is set to `NodeUpdateType.FRAME` since the node renders
 		 * its effect once per frame in `updateBefore()`.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default 'frame'
 		 */
 		this.updateBeforeType = NodeUpdateType.FRAME;
@@ -150,8 +149,8 @@ class LensflareNode extends TempNode {
 	/**
 	 * Sets the size of the effect.
 	 *
-	 * @param {Number} width - The width of the effect.
-	 * @param {Number} height - The height of the effect.
+	 * @param {number} width - The width of the effect.
+	 * @param {number} height - The height of the effect.
 	 */
 	setSize( width, height ) {
 
@@ -240,7 +239,8 @@ class LensflareNode extends TempNode {
 
 		} );
 
-		this._material.fragmentNode = lensflare().context( builder.getSharedContext() );
+		this._material.contextNode = context( builder.getSharedContext() );
+		this._material.fragmentNode = lensflare();
 		this._material.needsUpdate = true;
 
 		return this._textureNode;
@@ -252,6 +252,8 @@ class LensflareNode extends TempNode {
 	 * when the effect is no longer required.
 	 */
 	dispose() {
+
+		super.dispose();
 
 		this._renderTarget.dispose();
 		this._material.dispose();
@@ -265,15 +267,16 @@ export default LensflareNode;
 /**
  * TSL function for creating a bloom-based lens flare effect.
  *
+ * @tsl
  * @function
  * @param {TextureNode} node - The node that represents the scene's bloom.
  * @param {Object} params - The parameter object for configuring the effect.
  * @param {Node<vec3> | Color} [params.ghostTint=vec3(1, 1, 1)] - Defines the tint of the flare/ghosts.
- * @param {Node<float> | Number} [params.threshold=float(0.5)] - Controls the size and strength of the effect. A higher threshold results in smaller flares.
- * @param {Node<float> | Number} [params.ghostSamples=float(4)] - Represents the number of flares/ghosts per bright spot which pivot around the center.
- * @param {Node<float> | Number} [params.ghostSpacing=float(0.25)] - Defines the spacing of the flares/ghosts.
- * @param {Node<float> | Number} [params.ghostAttenuationFactor=float(25)] - Defines the attenuation factor of flares/ghosts.
- * @param {Number} [params.downSampleRatio=4] - Defines how downsampling since the effect is usually not rendered at full resolution.
+ * @param {Node<float> | number} [params.threshold=float(0.5)] - Controls the size and strength of the effect. A higher threshold results in smaller flares.
+ * @param {Node<float> | number} [params.ghostSamples=float(4)] - Represents the number of flares/ghosts per bright spot which pivot around the center.
+ * @param {Node<float> | number} [params.ghostSpacing=float(0.25)] - Defines the spacing of the flares/ghosts.
+ * @param {Node<float> | number} [params.ghostAttenuationFactor=float(25)] - Defines the attenuation factor of flares/ghosts.
+ * @param {number} [params.downSampleRatio=4] - Defines how downsampling since the effect is usually not rendered at full resolution.
  * @returns {LensflareNode}
  */
-export const lensflare = ( node, params ) => nodeObject( new LensflareNode( convertToTexture( node ), params ) );
+export const lensflare = ( node, params ) => new LensflareNode( convertToTexture( node ), params );

@@ -10,7 +10,7 @@ import { MeshPhongMaterial } from '../MeshPhongMaterial.js';
 const _defaultValues = /*@__PURE__*/ new MeshPhongMaterial();
 
 /**
- * Node material version of `MeshPhongMaterial`.
+ * Node material version of {@link MeshPhongMaterial}.
  *
  * @augments NodeMaterial
  */
@@ -25,7 +25,7 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 	/**
 	 * Constructs a new mesh lambert node material.
 	 *
-	 * @param {Object?} parameters - The configuration parameter.
+	 * @param {Object} [parameters] - The configuration parameter.
 	 */
 	constructor( parameters ) {
 
@@ -34,7 +34,7 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -43,10 +43,23 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 		/**
 		 * Set to `true` because phong materials react on lights.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default true
 		 */
 		this.lights = true;
+
+		/**
+		 * The emissive color of phong materials is by default inferred from the `emissive`,
+		 * `emissiveIntensity` and `emissiveMap` properties. This node property allows to
+		 * overwrite the default and define the emissive color with a node instead.
+		 *
+		 * If you don't want to overwrite the emissive color but modify the existing
+		 * value instead, use {@link materialEmissive}.
+		 *
+		 * @type {?Node<vec3>}
+		 * @default null
+		 */
+		this.emissiveNode = null;
 
 		/**
 		 * The shininess of phong materials is by default inferred from the `shininess`
@@ -54,9 +67,9 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 		 * and define the shininess with a node instead.
 		 *
 		 * If you don't want to overwrite the shininess but modify the existing
-		 * value instead, use {@link module:MaterialNode.materialShininess}.
+		 * value instead, use {@link materialShininess}.
 		 *
-		 * @type {Node<float>?}
+		 * @type {?Node<float>}
 		 * @default null
 		 */
 		this.shininessNode = null;
@@ -67,9 +80,9 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 		 * and define the specular color with a node instead.
 		 *
 		 * If you don't want to overwrite the specular color but modify the existing
-		 * value instead, use {@link module:MaterialNode.materialSpecular}.
+		 * value instead, use {@link materialSpecular}.
 		 *
-		 * @type {Node<vec3>?}
+		 * @type {?Node<vec3>}
 		 * @default null
 		 */
 		this.specularNode = null;
@@ -85,7 +98,7 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 	 * to implement the default environment mapping.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {BasicEnvironmentNode<vec3>?} The environment node.
+	 * @return {?BasicEnvironmentNode<vec3>} The environment node.
 	 */
 	setupEnvironment( builder ) {
 
@@ -124,15 +137,6 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 		const specularNode = this.specularNode || materialSpecular;
 
 		specularColor.assign( specularNode );
-
-	}
-
-	copy( source ) {
-
-		this.shininessNode = source.shininessNode;
-		this.specularNode = source.specularNode;
-
-		return super.copy( source );
 
 	}
 

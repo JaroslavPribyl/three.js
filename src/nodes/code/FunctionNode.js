@@ -1,5 +1,5 @@
 import CodeNode from './CodeNode.js';
-import { nodeObject } from '../tsl/TSLBase.js';
+import { nodeProxyConstructor } from '../tsl/TSLCore.js';
 
 /**
  * This class represents a native shader function. It can be used to implement
@@ -38,7 +38,7 @@ class FunctionNode extends CodeNode {
 	/**
 	 * Constructs a new function node.
 	 *
-	 * @param {String} [code=''] - The native code.
+	 * @param {string} [code=''] - The native code.
 	 * @param {Array<Node>} [includes=[]] - An array of includes.
 	 * @param {('js'|'wgsl'|'glsl')} [language=''] - The used language.
 	 */
@@ -48,9 +48,32 @@ class FunctionNode extends CodeNode {
 
 	}
 
-	getNodeType( builder ) {
+	/**
+	 * Returns the type of this function node.
+	 *
+	 * @param {NodeBuilder} builder - The current node builder.
+	 * @return {string} The type.
+	 */
+	generateNodeType( builder ) {
 
 		return this.getNodeFunction( builder ).type;
+
+	}
+
+	/**
+	 * Returns the type of a member of this function node.
+	 *
+	 * @param {NodeBuilder} builder - The current node builder.
+	 * @param {string} name - The name of the member.
+	 * @return {string} The type of the member.
+	 */
+	getMemberType( builder, name ) {
+
+		const type = this.getNodeType( builder );
+
+		const structType = builder.getStructTypeNode( type );
+
+		return structType.getMemberType( builder, name );
 
 	}
 
@@ -92,28 +115,40 @@ class FunctionNode extends CodeNode {
 
 	generate( builder, output ) {
 
-		super.generate( builder );
-
 		const nodeFunction = this.getNodeFunction( builder );
+		const nodeData = builder.getDataFromNode( this );
 
-		const name = nodeFunction.name;
 		const type = nodeFunction.type;
 
-		const nodeCode = builder.getCodeFromNode( this, type );
+		let propertyName = nodeData.functionPropertyName;
 
-		if ( name !== '' ) {
+		if ( propertyName === undefined ) {
 
-			// use a custom property name
+			// The includes and the function code are generated once per builder and shader stage,
+			// further calls only need the function name.
 
-			nodeCode.name = name;
+			super.generate( builder );
+
+			const name = nodeFunction.name;
+			const nodeCode = builder.getCodeFromNode( this, type );
+
+			if ( name !== '' ) {
+
+				// use a custom property name
+
+				nodeCode.name = name;
+
+				builder.registerDeclaration( nodeCode );
+
+			}
+
+			propertyName = builder.getPropertyName( nodeCode );
+
+			nodeCode.code = nodeFunction.getCode( propertyName ) + '\n';
+
+			nodeData.functionPropertyName = propertyName;
 
 		}
-
-		const propertyName = builder.getPropertyName( nodeCode );
-
-		const code = this.getNodeFunction( builder ).getCode( propertyName );
-
-		nodeCode.code = code + '\n';
 
 		if ( output === 'property' ) {
 
@@ -133,26 +168,11 @@ export default FunctionNode;
 
 const nativeFn = ( code, includes = [], language = '' ) => {
 
-	for ( let i = 0; i < includes.length; i ++ ) {
-
-		const include = includes[ i ];
-
-		// TSL Function: glslFn, wgslFn
-
-		if ( typeof include === 'function' ) {
-
-			includes[ i ] = include.functionNode;
-
-		}
-
-	}
-
-	const functionNode = nodeObject( new FunctionNode( code, includes, language ) );
+	const functionNode = new FunctionNode( code, includes, language );
 
 	const fn = ( ...params ) => functionNode.call( ...params );
-	fn.functionNode = functionNode;
 
-	return fn;
+	return nodeProxyConstructor( fn, functionNode );
 
 };
 

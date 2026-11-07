@@ -3,15 +3,16 @@ import { materialLightMap } from '../../nodes/accessors/MaterialNode.js';
 import BasicEnvironmentNode from '../../nodes/lighting/BasicEnvironmentNode.js';
 import BasicLightMapNode from '../../nodes/lighting/BasicLightMapNode.js';
 import BasicLightingModel from '../../nodes/functions/BasicLightingModel.js';
-import { normalView } from '../../nodes/accessors/Normal.js';
+import { normalViewGeometry } from '../../nodes/accessors/Normal.js';
 import { diffuseColor } from '../../nodes/core/PropertyNode.js';
+import { negateOnBackSide } from '../../nodes/display/FrontFacingNode.js';
 
 import { MeshBasicMaterial } from '../MeshBasicMaterial.js';
 
 const _defaultValues = /*@__PURE__*/ new MeshBasicMaterial();
 
 /**
- * Node material version of `MeshBasicMaterial`.
+ * Node material version of {@link MeshBasicMaterial}.
  *
  * @augments NodeMaterial
  */
@@ -26,7 +27,7 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 	/**
 	 * Constructs a new mesh basic node material.
 	 *
-	 * @param {Object?} parameters - The configuration parameter.
+	 * @param {Object} [parameters] - The configuration parameter.
 	 */
 	constructor( parameters ) {
 
@@ -35,7 +36,7 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -46,7 +47,7 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 		 * this property to `true` since we use a lighting model to compute
 		 * the outgoing light of the fragment shader.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default true
 		 */
 		this.lights = true;
@@ -59,13 +60,13 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 
 	/**
 	 * Basic materials are not affected by normal and bump maps so we
-	 * return by default {@link module:Normal.normalView}.
+	 * return by default {@link normalViewGeometry}.
 	 *
 	 * @return {Node<vec3>} The normal node.
 	 */
 	setupNormal() {
 
-		return normalView; // see #28839
+		return negateOnBackSide( normalViewGeometry ); // see #28839
 
 	}
 
@@ -74,7 +75,7 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 	 * to implement the default environment mapping.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {BasicEnvironmentNode<vec3>?} The environment node.
+	 * @return {?BasicEnvironmentNode<vec3>} The environment node.
 	 */
 	setupEnvironment( builder ) {
 
@@ -89,7 +90,7 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 	 * with a special scaling factor for basic materials.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {BasicLightMapNode<vec3>?} The light map node.
+	 * @return {?BasicLightMapNode<vec3>} The light map node.
 	 */
 	setupLightMap( builder ) {
 

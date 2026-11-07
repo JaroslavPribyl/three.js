@@ -9,15 +9,23 @@ class Animation {
 	/**
 	 * Constructs a new animation loop management component.
 	 *
-	 * @param {Nodes} nodes - Renderer component for managing nodes related logic.
+	 * @param {Renderer} renderer - A reference to the main renderer.
+	 * @param {NodeManager} nodes - Renderer component for managing nodes related logic.
 	 * @param {Info} info - Renderer component for managing metrics and monitoring data.
 	 */
-	constructor( nodes, info ) {
+	constructor( renderer, nodes, info ) {
+
+		/**
+		 * A reference to the main renderer.
+		 *
+		 * @type {Renderer}
+		 */
+		this.renderer = renderer;
 
 		/**
 		 * Renderer component for managing nodes related logic.
 		 *
-		 * @type {Nodes}
+		 * @type {NodeManager}
 		 */
 		this.nodes = nodes;
 
@@ -32,14 +40,14 @@ class Animation {
 		 * A reference to the context from `requestAnimationFrame()` can
 		 * be called (usually `window`).
 		 *
-		 * @type {Window|XRSession}
+		 * @type {?(Window|XRSession)}
 		 */
-		this._context = self;
+		this._context = typeof self !== 'undefined' ? self : null;
 
 		/**
 		 * The user-defined animation loop.
 		 *
-		 * @type {Function?}
+		 * @type {?Function}
 		 * @default null
 		 */
 		this._animationLoop = null;
@@ -48,7 +56,7 @@ class Animation {
 		 * The requestId which is returned from the `requestAnimationFrame()` call.
 		 * Can be used to cancel the stop the animation loop.
 		 *
-		 * @type {Number?}
+		 * @type {?number}
 		 * @default null
 		 */
 		this._requestId = null;
@@ -56,13 +64,21 @@ class Animation {
 	}
 
 	/**
-	 * Starts the internal animation loop.
+	 * Starts the internal animation loop, if it is not running yet.
 	 */
 	start() {
 
-		const update = ( time, frame ) => {
+		if ( this._requestId !== null ) return;
+
+		const update = ( time, xrFrame ) => {
 
 			this._requestId = this._context.requestAnimationFrame( update );
+
+			if ( this.renderer._inspector.isRunning ) {
+
+				this.renderer._inspector.finish();
+
+			}
 
 			if ( this.info.autoReset === true ) this.info.reset();
 
@@ -70,7 +86,13 @@ class Animation {
 
 			this.info.frame = this.nodes.nodeFrame.frameId;
 
-			if ( this._animationLoop !== null ) this._animationLoop( time, frame );
+			this.renderer._inspector.begin();
+
+			if ( this._animationLoop !== null ) {
+
+				this._animationLoop( time, xrFrame );
+
+			}
 
 		};
 
@@ -83,7 +105,9 @@ class Animation {
 	 */
 	stop() {
 
-		this._context.cancelAnimationFrame( this._requestId );
+		if ( this.renderer._inspector.isRunning ) this.renderer._inspector.finish();
+
+		if ( this._context !== null ) this._context.cancelAnimationFrame( this._requestId );
 
 		this._requestId = null;
 
@@ -92,7 +116,7 @@ class Animation {
 	/**
 	 * Returns the user-level animation loop.
 	 *
-	 * @return {Function} The animation loop.
+	 * @return {?Function} The animation loop.
 	 */
 	getAnimationLoop() {
 
@@ -103,7 +127,7 @@ class Animation {
 	/**
 	 * Defines the user-level animation loop.
 	 *
-	 * @param {Function} callback - The animation loop.
+	 * @param {?Function} callback - The animation loop.
 	 */
 	setAnimationLoop( callback ) {
 
@@ -139,6 +163,8 @@ class Animation {
 	dispose() {
 
 		this.stop();
+
+		this._animationLoop = null;
 
 	}
 

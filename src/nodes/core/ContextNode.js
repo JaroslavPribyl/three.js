@@ -1,7 +1,7 @@
 import Node from './Node.js';
-import { addMethodChaining, nodeProxy } from '../tsl/TSLCore.js';
-
-/** @module ContextNode **/
+import { addMethodChaining } from '../tsl/TSLCore.js';
+import { warn } from '../../utils.js';
+import { mergeContext } from './NodeUtils.js';
 
 /**
  * This node can be used as a context management component for another node.
@@ -10,6 +10,12 @@ import { addMethodChaining, nodeProxy } from '../tsl/TSLCore.js';
  *
  * ```js
  *node.context( { getUV: () => customCoord } );
+ *\// or
+ *material.contextNode = context( { getUV: () => customCoord } );
+ *\// or
+ *renderer.contextNode = context( { getUV: () => customCoord } );
+ *\// or
+ *scenePass.contextNode = context( { getUV: () => customCoord } );
  *```
  * @augments Node
  */
@@ -27,14 +33,14 @@ class ContextNode extends Node {
 	 * @param {Node} node - The node whose context should be modified.
 	 * @param {Object} [value={}] - The modified context data.
 	 */
-	constructor( node, value = {} ) {
+	constructor( node = null, value = {} ) {
 
 		super();
 
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -57,10 +63,16 @@ class ContextNode extends Node {
 
 	}
 
+	isCacheable( /*builder*/ ) {
+
+		return false;
+
+	}
+
 	/**
-	 * This method is overwritten to ensure it returns the reference to {@link module:ContextNode~ContextNode#node}.
+	 * This method is overwritten to ensure it returns the reference to {@link ContextNode#node}.
 	 *
-	 * @return {Node} A reference to {@link module:ContextNode~ContextNode#node}.
+	 * @return {Node} A reference to {@link ContextNode#node}.
 	 */
 	getScope() {
 
@@ -69,42 +81,82 @@ class ContextNode extends Node {
 	}
 
 	/**
-	 * This method is overwritten to ensure it returns the type of {@link module:ContextNode~ContextNode#node}.
+	 * This method is overwritten to ensure it returns the type of {@link ContextNode#node}.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The node type.
+	 * @return {string} The node type.
 	 */
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
 		return this.node.getNodeType( builder );
 
 	}
 
+	/**
+	 * Gathers the context data from all parent context nodes.
+	 *
+	 * @return {Object} The gathered context data.
+	 */
+	getFlowContextData() {
+
+		let data = {};
+
+		this.traverse( ( node ) => {
+
+			if ( node.isContextNode === true ) {
+
+				data = mergeContext( data, node.value );
+
+			}
+
+		} );
+
+		return data;
+
+	}
+
+	/**
+	 * This method is overwritten to ensure it returns the member type of {@link ContextNode#node}.
+	 *
+	 * @param {NodeBuilder} builder - The current node builder.
+	 * @param {string} name - The member name.
+	 * @returns {string} The member type.
+	 */
+	getMemberType( builder, name ) {
+
+		return this.node.getMemberType( builder, name );
+
+	}
+
 	analyze( builder ) {
 
-		this.node.build( builder );
+		const usageCount = builder.increaseUsage( this );
+
+		if ( usageCount === 1 ) {
+
+			const previousContext = builder.addContext( this.value );
+
+			this.node.build( builder, this );
+
+			builder.setContext( previousContext );
+
+		}
 
 	}
 
 	setup( builder ) {
 
-		const previousContext = builder.getContext();
+		const previousContext = builder.addContext( this.value );
 
-		builder.setContext( { ...builder.context, ...this.value } );
-
-		const node = this.node.build( builder );
+		this.node.build( builder );
 
 		builder.setContext( previousContext );
-
-		return node;
 
 	}
 
 	generate( builder, output ) {
 
-		const previousContext = builder.getContext();
-
-		builder.setContext( { ...builder.context, ...this.value } );
+		const previousContext = builder.addContext( this.value );
 
 		const snippet = this.node.build( builder, output );
 
@@ -121,22 +173,169 @@ export default ContextNode;
 /**
  * TSL function for creating a context node.
  *
+ * @tsl
  * @function
- * @param {Node} node - The node whose context should be modified.
+ * @param {Node|Object} [nodeOrValue={}] - The node whose context should be modified or the modified context data.
  * @param {Object} [value={}] - The modified context data.
  * @returns {ContextNode}
  */
-export const context = /*@__PURE__*/ nodeProxy( ContextNode );
+export const context = ( nodeOrValue = null, value = {} ) => {
+
+	let node = nodeOrValue;
+
+	if ( node === null || node.isNode !== true ) {
+
+		value = node || value;
+		node = null;
+
+	}
+
+	return new ContextNode( node, value );
+
+};
+
+/**
+ * TSL function for defining a uniformFlow context value for a given node.
+ *
+ * @tsl
+ * @function
+ * @param {Node} node - The node whose dependencies should all execute within a uniform control-flow path.
+ * @returns {ContextNode}
+ */
+export const uniformFlow = ( node ) => context( node, { uniformFlow: true } );
+
+/**
+ * TSL function for defining a name for the context value for a given node.
+ *
+ * @tsl
+ * @function
+ * @param {Node} node - The node whose context should be modified.
+ * @param {string} name - The name to set.
+ * @returns {ContextNode}
+ */
+export const setName = ( node, name ) => context( node, { nodeName: name } );
+
+/**
+ * TSL function for defining a built-in shadow context for a given node.
+ *
+ * @tsl
+ * @function
+ * @param {ShadowNode} shadowNode - The shadow node representing the light's shadow.
+ * @param {Light} light - The light associated with the shadow.
+ * @param {Node} [node=null] - The node whose context should be modified.
+ * @returns {ContextNode}
+ */
+export function builtinShadowContext( shadowNode, light, node = null ) {
+
+	return context( node, {
+
+		getShadow: ( { light: shadowLight, shadowColorNode } ) => {
+
+			if ( light === shadowLight ) {
+
+				return shadowColorNode.mul( shadowNode );
+
+			}
+
+			return shadowColorNode;
+
+		}
+
+	} );
+
+}
+
+/**
+ * TSL function for defining a built-in ambient occlusion context for a given node.
+ *
+ * @tsl
+ * @function
+ * @param {Node} aoNode - The ambient occlusion value node to apply.
+ * @param {Node} [node=null] - The node whose context should be modified.
+ * @returns {ContextNode}
+ */
+export function builtinAOContext( aoNode, node = null ) {
+
+	return context( node, {
+
+		getAO: ( inputNode, { material } ) => {
+
+			if ( material.transparent === true ) return inputNode;
+
+			return inputNode !== null ? inputNode.mul( aoNode ) : aoNode;
+
+		}
+
+	} );
+
+}
+
+/**
+ * TSL function for defining a built-in global illumination context for a given node. The AO node
+ * modulates the indirect lighting of the materials, the GI node is added to their irradiance
+ * without being modulated by the AO since it already accounts for occlusion.
+ *
+ * @tsl
+ * @function
+ * @param {Node<float>} aoNode - The ambient occlusion value node to apply.
+ * @param {Node<vec3>} giNode - The indirect diffuse irradiance node to add.
+ * @param {Node} [node=null] - The node whose context should be modified.
+ * @returns {ContextNode}
+ */
+export function builtinGIContext( aoNode, giNode, node = null ) {
+
+	// the lighting models multiply the whole indirect diffuse term by the AO, which would occlude
+	// the GI a second time. Dividing the GI by the AO cancels that out so only the environment
+	// lighting is modulated.
+
+	const ao = aoNode.max( 1e-3 );
+
+	return context( node, {
+
+		getAO: ( inputNode, { material } ) => {
+
+			if ( material.transparent === true ) return inputNode;
+
+			return inputNode !== null ? inputNode.mul( ao ) : ao;
+
+		},
+
+		getGI: ( inputNode, { material } ) => {
+
+			if ( material.transparent === true ) return inputNode;
+
+			const gi = giNode.div( ao );
+
+			return inputNode !== null ? inputNode.add( gi ) : gi;
+
+		}
+
+	} );
+
+}
 
 /**
  * TSL function for defining a label context value for a given node.
  *
+ * @tsl
  * @function
+ * @deprecated
  * @param {Node} node - The node whose context should be modified.
- * @param {String} name - The name/label to set.
+ * @param {string} name - The name/label to set.
  * @returns {ContextNode}
  */
-export const label = ( node, name ) => context( node, { label: name } );
+export function label( node, name ) {
+
+	warn( 'TSL: "label()" has been deprecated. Use "setName()" instead.' ); // @deprecated r179
+
+	return setName( node, name );
+
+}
 
 addMethodChaining( 'context', context );
 addMethodChaining( 'label', label );
+addMethodChaining( 'uniformFlow', uniformFlow );
+addMethodChaining( 'setName', setName );
+addMethodChaining( 'builtinShadowContext', ( node, shadowNode, light ) => builtinShadowContext( shadowNode, light, node ) );
+addMethodChaining( 'builtinAOContext', ( node, aoValue ) => builtinAOContext( aoValue, node ) );
+addMethodChaining( 'builtinGIContext', ( node, aoValue, giValue ) => builtinGIContext( aoValue, giValue, node ) );

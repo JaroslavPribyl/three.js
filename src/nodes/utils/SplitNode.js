@@ -26,7 +26,7 @@ class SplitNode extends Node {
 	 * Constructs a new split node.
 	 *
 	 * @param {Node} node - The node that should be accessed.
-	 * @param {String} [components='x'] - The components that should be accessed.
+	 * @param {string} [components='x'] - The components that should be accessed.
 	 */
 	constructor( node, components = 'x' ) {
 
@@ -49,7 +49,7 @@ class SplitNode extends Node {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -57,10 +57,16 @@ class SplitNode extends Node {
 
 	}
 
+	isCacheable( /*builder*/ ) {
+
+		return false;
+
+	}
+
 	/**
 	 * Returns the vector length which is computed based on the requested components.
 	 *
-	 * @return {Number} The vector length.
+	 * @return {number} The vector length.
 	 */
 	getVectorLength() {
 
@@ -80,7 +86,7 @@ class SplitNode extends Node {
 	 * Returns the component type of the node's type.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The component type.
+	 * @return {string} The component type.
 	 */
 	getComponentType( builder ) {
 
@@ -92,11 +98,22 @@ class SplitNode extends Node {
 	 * This method is overwritten since the node type is inferred from requested components.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The node type.
+	 * @return {string} The node type.
 	 */
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
 		return builder.getTypeFromLength( this.components.length, this.getComponentType( builder ) );
+
+	}
+
+	/**
+	 * Returns the scope of the node.
+	 *
+	 * @return {Node} The scope of the node.
+	 */
+	getScope() {
+
+		return this.node.getScope();
 
 	}
 

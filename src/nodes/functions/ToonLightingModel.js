@@ -1,7 +1,7 @@
 import LightingModel from '../core/LightingModel.js';
 import BRDF_Lambert from './BSDF/BRDF_Lambert.js';
 import { diffuseColor } from '../core/PropertyNode.js';
-import { normalGeometry } from '../accessors/Normal.js';
+import { normalView } from '../accessors/Normal.js';
 import { Fn, float, vec2, vec3 } from '../tsl/TSLBase.js';
 import { mix, smoothstep } from '../math/MathNode.js';
 import { materialReference } from '../accessors/MaterialReferenceNode.js';
@@ -39,13 +39,12 @@ class ToonLightingModel extends LightingModel {
 	 * Implements the direct lighting. Instead of using a conventional smooth irradiance, the irradiance is
 	 * reduced to a small number of discrete shades to create a comic-like, flat look.
 	 *
-	 * @param {Object} input - The input data.
-	 * @param {StackNode} stack - The current stack.
+	 * @param {Object} lightData - The light data.
 	 * @param {NodeBuilder} builder - The current node builder.
 	 */
-	direct( { lightDirection, lightColor, reflectedLight }, stack, builder ) {
+	direct( { lightDirection, lightColor, reflectedLight }, builder ) {
 
-		const irradiance = getGradientIrradiance( { normal: normalGeometry, lightDirection, builder } ).mul( lightColor );
+		const irradiance = getGradientIrradiance( { normal: normalView, lightDirection, builder } ).mul( lightColor );
 
 		reflectedLight.directDiffuse.addAssign( irradiance.mul( BRDF_Lambert( { diffuseColor: diffuseColor.rgb } ) ) );
 
@@ -54,11 +53,11 @@ class ToonLightingModel extends LightingModel {
 	/**
 	 * Implements the indirect lighting.
 	 *
-	 * @param {ContextNode} input - The current node context.
-	 * @param {StackNode} stack - The current stack.
 	 * @param {NodeBuilder} builder - The current node builder.
 	 */
-	indirect( { ambientOcclusion, irradiance, reflectedLight } ) {
+	indirect( builder ) {
+
+		const { ambientOcclusion, irradiance, reflectedLight } = builder.context;
 
 		reflectedLight.indirectDiffuse.addAssign( irradiance.mul( BRDF_Lambert( { diffuseColor } ) ) );
 

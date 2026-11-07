@@ -12,17 +12,15 @@ class BindGroup {
 	/**
 	 * Constructs a new bind group.
 	 *
-	 * @param {String} name - The bind group's name.
+	 * @param {string} name - The bind group's name.
 	 * @param {Array<Binding>} bindings - An array of bindings.
-	 * @param {Number} index - The group index.
-	 * @param {Array<Binding>} bindingsReference - An array of reference bindings.
 	 */
-	constructor( name = '', bindings = [], index = 0, bindingsReference = [] ) {
+	constructor( name = '', bindings = [] ) {
 
 		/**
 		 * The bind group's name.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 */
 		this.name = name;
 
@@ -34,25 +32,22 @@ class BindGroup {
 		this.bindings = bindings;
 
 		/**
-		 * The group index.
-		 *
-		 * @type {Number}
-		 */
-		this.index = index;
-
-		/**
-		 * An array of reference bindings.
-		 *
-		 * @type {Array<Binding>}
-		 */
-		this.bindingsReference = bindingsReference;
-
-		/**
 		 * The group's ID.
 		 *
-		 * @type {Number}
+		 * @type {number}
 		 */
 		this.id = _id ++;
+
+	}
+
+	/**
+	 * Returns a new bind group with the same name and clones of the bindings.
+	 *
+	 * @return {BindGroup} A clone of this bind group.
+	 */
+	clone() {
+
+		return new BindGroup( this.name, this.bindings.map( ( binding ) => binding.clone() ) );
 
 	}
 

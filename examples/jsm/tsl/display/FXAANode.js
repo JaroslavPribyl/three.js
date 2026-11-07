@@ -1,15 +1,14 @@
-import { Vector2, TempNode } from 'three/webgpu';
-import { nodeObject, Fn, uniformArray, select, float, NodeUpdateType, uv, dot, clamp, uniform, convertToTexture, smoothstep, bool, vec2, vec3, If, Loop, max, min, Break, abs } from 'three/tsl';
-
-/** @module FXAANode **/
+import { Vector2, Node } from 'three/webgpu';
+import { Fn, uniformArray, select, float, NodeUpdateType, uv, dot, clamp, uniform, convertToTexture, smoothstep, bool, vec2, vec3, If, Loop, max, min, Break, abs } from 'three/tsl';
 
 /**
  * Post processing node for applying FXAA. This node requires sRGB input
  * so tone mapping and color space conversion must happen before the anti-aliasing.
  *
- * @augments TempNode
+ * @augments Node
+ * @three_import import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
  */
-class FXAANode extends TempNode {
+class FXAANode extends Node {
 
 	static get type() {
 
@@ -37,7 +36,7 @@ class FXAANode extends TempNode {
 		 * The `updateBeforeType` is set to `NodeUpdateType.FRAME` since the node updates
 		 * its internal uniforms once per frame in `updateBefore()`.
 		 *
-		 * @type {String}
+		 * @type {string}
 		 * @default 'frame'
 		 */
 		this.updateBeforeType = NodeUpdateType.FRAME;
@@ -124,8 +123,8 @@ class FXAANode extends TempNode {
 			const se = SampleLuminanceOffset( texSize, uv, 1.0, 1.0 );
 			const sw = SampleLuminanceOffset( texSize, uv, - 1.0, 1.0 );
 
-			const highest = max( max( max( max( s, e ), n ), w ), m );
-			const lowest = min( min( min( min( s, e ), n ), w ), m );
+			const highest = max( s, e, n, w, m );
+			const lowest = min( s, e, n, w, m );
 			const contrast = highest.sub( lowest );
 
 			return { m, n, e, s, w, ne, nw, se, sw, highest, lowest, contrast };
@@ -305,38 +304,30 @@ class FXAANode extends TempNode {
 		const ApplyFXAA = Fn( ( [ uv, texSize ] ) => {
 
 			const luminance = SampleLuminanceNeighborhood( texSize, uv );
-			If( ShouldSkipPixel( luminance ), () => {
+			const finalUv = vec2( uv ).toVar();
 
-				return Sample( uv );
+			If( ShouldSkipPixel( luminance ).not(), () => {
 
-			} );
+				const pixelBlend = DeterminePixelBlendFactor( luminance );
+				const edge = DetermineEdge( texSize, luminance );
+				const edgeBlend = DetermineEdgeBlendFactor( texSize, luminance, edge, uv );
 
-			const pixelBlend = DeterminePixelBlendFactor( luminance );
-			const edge = DetermineEdge( texSize, luminance );
-			const edgeBlend = DetermineEdgeBlendFactor( texSize, luminance, edge, uv );
+				const finalBlend = max( pixelBlend, edgeBlend );
 
-			const finalBlend = max( pixelBlend, edgeBlend );
-			const finalUv = uv.toVar();
+				If( edge.isHorizontal, () => {
 
-			If( edge.isHorizontal, () => {
+					finalUv.y.addAssign( edge.pixelStep.mul( finalBlend ) );
 
-				finalUv.y.addAssign( edge.pixelStep.mul( finalBlend ) );
+				} ).Else( () => {
 
-			} ).Else( () => {
+					finalUv.x.addAssign( edge.pixelStep.mul( finalBlend ) );
 
-				finalUv.x.addAssign( edge.pixelStep.mul( finalBlend ) );
+				} );
 
 			} );
 
 			return Sample( finalUv );
 
-		} ).setLayout( {
-			name: 'FxaaPixelShader',
-			type: 'vec4',
-			inputs: [
-				{ name: 'uv', type: 'vec2' },
-				{ name: 'texSize', type: 'vec2' },
-			]
 		} );
 
 		const fxaa = Fn( () => {
@@ -358,8 +349,9 @@ export default FXAANode;
 /**
  * TSL function for creating a FXAA node for anti-aliasing via post processing.
  *
+ * @tsl
  * @function
  * @param {Node<vec4>} node - The node that represents the input of the effect.
  * @returns {FXAANode}
  */
-export const fxaa = ( node ) => nodeObject( new FXAANode( convertToTexture( node ) ) );
+export const fxaa = ( node ) => new FXAANode( convertToTexture( node ) );

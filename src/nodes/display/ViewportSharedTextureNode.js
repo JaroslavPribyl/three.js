@@ -4,8 +4,6 @@ import { screenUV } from './ScreenNode.js';
 
 import { FramebufferTexture } from '../../textures/FramebufferTexture.js';
 
-/** @module ViewportSharedTextureNode **/
-
 let _sharedFramebuffer = null;
 
 /**
@@ -13,7 +11,7 @@ let _sharedFramebuffer = null;
  * shares a texture across all instances of `ViewportSharedTextureNode`. It should
  * be the first choice when using data of the default/screen framebuffer for performance reasons.
  *
- * @augments module:ViewportTextureNode~ViewportTextureNode
+ * @augments ViewportTextureNode
  */
 class ViewportSharedTextureNode extends ViewportTextureNode {
 
@@ -27,7 +25,7 @@ class ViewportSharedTextureNode extends ViewportTextureNode {
 	 * Constructs a new viewport shared texture node.
 	 *
 	 * @param {Node} [uvNode=screenUV] - The uv node.
-	 * @param {Node?} [levelNode=null] - The level node.
+	 * @param {?Node} [levelNode=null] - The level node.
 	 */
 	constructor( uvNode = screenUV, levelNode = null ) {
 
@@ -38,6 +36,18 @@ class ViewportSharedTextureNode extends ViewportTextureNode {
 		}
 
 		super( uvNode, levelNode, _sharedFramebuffer );
+
+	}
+
+	/**
+	 * Overwritten so the method always returns the unique shared
+	 * framebuffer texture.
+	 *
+	 * @return {FramebufferTexture} The shared framebuffer texture.
+	 */
+	getTextureForReference() {
+
+		return _sharedFramebuffer;
 
 	}
 
@@ -54,9 +64,10 @@ export default ViewportSharedTextureNode;
 /**
  * TSL function for creating a shared viewport texture node.
  *
+ * @tsl
  * @function
- * @param {Node} [uvNode=screenUV] - The uv node.
- * @param {Node?} [levelNode=null] - The level node.
+ * @param {?Node} [uvNode=screenUV] - The uv node.
+ * @param {?Node} [levelNode=null] - The level node.
  * @returns {ViewportSharedTextureNode}
  */
-export const viewportSharedTexture = /*@__PURE__*/ nodeProxy( ViewportSharedTextureNode );
+export const viewportSharedTexture = /*@__PURE__*/ nodeProxy( ViewportSharedTextureNode ).setParameterLength( 0, 2 );

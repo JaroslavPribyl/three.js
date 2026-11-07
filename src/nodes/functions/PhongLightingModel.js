@@ -2,7 +2,7 @@ import BasicLightingModel from './BasicLightingModel.js';
 import F_Schlick from './BSDF/F_Schlick.js';
 import BRDF_Lambert from './BSDF/BRDF_Lambert.js';
 import { diffuseColor, shininess, specularColor } from '../core/PropertyNode.js';
-import { transformedNormalView } from '../accessors/Normal.js';
+import { normalView } from '../accessors/Normal.js';
 import { materialSpecularStrength } from '../accessors/MaterialNode.js';
 import { positionViewDirection } from '../accessors/Position.js';
 import { Fn, float } from '../tsl/TSLBase.js';
@@ -19,7 +19,7 @@ const BRDF_BlinnPhong = /*@__PURE__*/ Fn( ( { lightDirection } ) => {
 
 	const halfDir = lightDirection.add( positionViewDirection ).normalize();
 
-	const dotNH = transformedNormalView.dot( halfDir ).clamp();
+	const dotNH = normalView.dot( halfDir ).clamp();
 	const dotVH = positionViewDirection.dot( halfDir ).clamp();
 
 	const F = F_Schlick( { f0: specularColor, f90: 1.0, dotVH } );
@@ -40,7 +40,7 @@ class PhongLightingModel extends BasicLightingModel {
 	/**
 	 * Constructs a new phong lighting model.
 	 *
-	 * @param {Boolean} [specular=true] - Whether specular is supported or not.
+	 * @param {boolean} [specular=true] - Whether specular is supported or not.
 	 */
 	constructor( specular = true ) {
 
@@ -51,7 +51,7 @@ class PhongLightingModel extends BasicLightingModel {
 		 * looking for a Lambert-like material meaning a material for non-shiny
 		 * surfaces, without specular highlights.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @default true
 		 */
 		this.specular = specular;
@@ -59,16 +59,14 @@ class PhongLightingModel extends BasicLightingModel {
 	}
 
 	/**
-	 * Implements the direct lighting. The specular portion is optional an can be controlled
+	 * Implements the direct lighting. The specular portion is optional and can be controlled
 	 * with the {@link PhongLightingModel#specular} flag.
 	 *
-	 * @param {Object} input - The input data.
-	 * @param {StackNode} stack - The current stack.
-	 * @param {NodeBuilder} builder - The current node builder.
+	 * @param {Object} lightData - The light data.
 	 */
 	direct( { lightDirection, lightColor, reflectedLight } ) {
 
-		const dotNL = transformedNormalView.dot( lightDirection ).clamp();
+		const dotNL = normalView.dot( lightDirection ).clamp();
 		const irradiance = dotNL.mul( lightColor );
 
 		reflectedLight.directDiffuse.addAssign( irradiance.mul( BRDF_Lambert( { diffuseColor: diffuseColor.rgb } ) ) );
@@ -84,11 +82,11 @@ class PhongLightingModel extends BasicLightingModel {
 	/**
 	 * Implements the indirect lighting.
 	 *
-	 * @param {ContextNode} input - The current node context.
-	 * @param {StackNode} stack - The current stack.
 	 * @param {NodeBuilder} builder - The current node builder.
 	 */
-	indirect( { ambientOcclusion, irradiance, reflectedLight } ) {
+	indirect( builder ) {
+
+		const { ambientOcclusion, irradiance, reflectedLight } = builder.context;
 
 		reflectedLight.indirectDiffuse.addAssign( irradiance.mul( BRDF_Lambert( { diffuseColor } ) ) );
 

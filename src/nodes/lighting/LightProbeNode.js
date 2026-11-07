@@ -1,6 +1,7 @@
 import AnalyticLightNode from './AnalyticLightNode.js';
 import { normalWorld } from '../accessors/Normal.js';
 import { uniformArray } from '../accessors/UniformArrayNode.js';
+import { renderGroup } from '../core/UniformGroupNode.js';
 import { Vector3 } from '../../math/Vector3.js';
 import getShIrradianceAt from '../functions/material/getShIrradianceAt.js';
 
@@ -20,7 +21,7 @@ class LightProbeNode extends AnalyticLightNode {
 	/**
 	 * Constructs a new light probe node.
 	 *
-	 * @param {LightProbe?} [light=null] - The light probe.
+	 * @param {?LightProbe} [light=null] - The light probe.
 	 */
 	constructor( light = null ) {
 
@@ -35,7 +36,7 @@ class LightProbeNode extends AnalyticLightNode {
 		 *
 		 * @type {UniformArrayNode}
 		 */
-		this.lightProbe = uniformArray( array );
+		this.lightProbe = uniformArray( array ).setGroup( renderGroup );
 
 	}
 

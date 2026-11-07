@@ -7,11 +7,22 @@
 			name="viewport"
 			content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
 		/>
-		<link type="text/css" rel="stylesheet" href="main.css" />
+		<meta property="og:title" content="three.js webgpu - curve modifier" />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://threejs.org/examples/webgpu_modifier_curve.html" />
+		<meta property="og:image" content="https://threejs.org/examples/screenshots/webgpu_modifier_curve.jpg" />
+		<link type="text/css" rel="stylesheet" href="example.css" />
 	</head>
 	<body>
+
 		<div id="info">
-			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgpu - curve modifier
+			<a href="https://threejs.org/" target="_blank" rel="noopener" class="logo-link"></a>
+
+			<div class="title-wrapper">
+				<a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a><span>Curve Modifier</span>
+			</div>
+
+			<small>Deform a mesh along a curve using GPU acceleration.</small>
 		</div>
 
 		<script type="importmap">
@@ -26,9 +37,10 @@
 		</script>
 
 		<script type="module">
-			import * as THREE from 'three';
+
+			import * as THREE from 'three/webgpu';
 			import { TransformControls } from 'three/addons/controls/TransformControls.js';
-			import Stats from 'three/addons/libs/stats.module.js';
+
 			import { Flow } from 'three/addons/modifiers/CurveModifierGPU.js';
 			import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 			import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
@@ -37,7 +49,6 @@
 			const curveHandles = [];
 			const mouse = new THREE.Vector2();
 
-			let stats;
 			let scene,
 				camera,
 				renderer,
@@ -158,9 +169,6 @@
 
 				} );
 
-				stats = new Stats();
-				document.body.appendChild( stats.dom );
-
 				window.addEventListener( 'resize', onWindowResize );
 
 			}
@@ -212,8 +220,6 @@
 			function render() {
 
 				renderer.render( scene, camera );
-
-				stats.update();
 
 			}
 		</script>

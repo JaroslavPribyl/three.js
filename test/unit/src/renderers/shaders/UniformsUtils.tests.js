@@ -1,5 +1,3 @@
-/* global QUnit */
-
 import { UniformsUtils } from '../../../../../src/renderers/shaders/UniformsUtils.js';
 import { Color } from '../../../../../src/math/Color.js';
 import { Vector2 } from '../../../../../src/math/Vector2.js';
@@ -22,19 +20,6 @@ export default QUnit.module( 'Renderers', () => {
 			QUnit.test( 'Instancing', ( assert ) => {
 
 				assert.ok( UniformsUtils, 'UniformsUtils is defined.' );
-
-			} );
-
-			// LEGACY
-			QUnit.todo( 'UniformsUtils.clone', ( assert ) => {
-
-				assert.ok( false, 'everything\'s gonna be alright' );
-
-			} );
-
-			QUnit.todo( 'UniformsUtils.merge', ( assert ) => {
-
-				assert.ok( false, 'everything\'s gonna be alright' );
 
 			} );
 
@@ -129,6 +114,29 @@ export default QUnit.module( 'Renderers', () => {
 
 			} );
 
+			QUnit.test( 'cloneUniforms clones arrays of objects', ( assert ) => {
+
+				const uniforms = {
+					vector3Array: { value: [ new Vector3( 1, 2, 3 ), new Vector3( 4, 5, 6 ) ] },
+				};
+
+				const uniformClones = UniformsUtils.clone( uniforms );
+
+				// Cloned array is a different reference and contains different object references
+				assert.ok( uniforms.vector3Array.value !== uniformClones.vector3Array.value );
+				assert.ok( uniforms.vector3Array.value[ 0 ] !== uniformClones.vector3Array.value[ 0 ] );
+				assert.ok( uniforms.vector3Array.value[ 1 ] !== uniformClones.vector3Array.value[ 1 ] );
+
+				// Values are equal after cloning
+				assert.ok( uniforms.vector3Array.value[ 0 ].equals( uniformClones.vector3Array.value[ 0 ] ) );
+				assert.ok( uniforms.vector3Array.value[ 1 ].equals( uniformClones.vector3Array.value[ 1 ] ) );
+
+				// Mutating the original does not affect the clone
+				uniforms.vector3Array.value[ 0 ].x = 123.0;
+				assert.ok( ! uniforms.vector3Array.value[ 0 ].equals( uniformClones.vector3Array.value[ 0 ] ) );
+
+			} );
+
 			QUnit.test( 'cloneUniforms skips render target textures', ( assert ) => {
 
 				const uniforms = {
@@ -142,25 +150,6 @@ export default QUnit.module( 'Renderers', () => {
 				console.level = CONSOLE_LEVEL.DEFAULT;
 
 				assert.ok( uniformClones.textureValue.value === null );
-
-			} );
-
-
-			QUnit.todo( 'mergeUniforms', ( assert ) => {
-
-				assert.ok( false, 'everything\'s gonna be alright' );
-
-			} );
-
-			QUnit.todo( 'cloneUniformsGroups', ( assert ) => {
-
-				assert.ok( false, 'everything\'s gonna be alright' );
-
-			} );
-
-			QUnit.todo( 'getUnlitUniformColorSpace', ( assert ) => {
-
-				assert.ok( false, 'everything\'s gonna be alright' );
 
 			} );
 

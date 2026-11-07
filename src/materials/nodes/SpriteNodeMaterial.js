@@ -1,5 +1,4 @@
 import NodeMaterial from './NodeMaterial.js';
-import { cameraProjectionMatrix } from '../../nodes/accessors/Camera.js';
 import { materialRotation } from '../../nodes/accessors/MaterialNode.js';
 import { modelViewMatrix, modelWorldMatrix } from '../../nodes/accessors/ModelNode.js';
 import { positionGeometry } from '../../nodes/accessors/Position.js';
@@ -12,7 +11,7 @@ import { reference } from '../../nodes/accessors/ReferenceBaseNode.js';
 const _defaultValues = /*@__PURE__*/ new SpriteMaterial();
 
 /**
- * Node material version of `SpriteMaterial`.
+ * Node material version of {@link SpriteMaterial}.
  *
  * @augments NodeMaterial
  */
@@ -27,7 +26,7 @@ class SpriteNodeMaterial extends NodeMaterial {
 	/**
 	 * Constructs a new sprite node material.
 	 *
-	 * @param {Object?} parameters - The configuration parameter.
+	 * @param {Object} [parameters] - The configuration parameter.
 	 */
 	constructor( parameters ) {
 
@@ -36,7 +35,7 @@ class SpriteNodeMaterial extends NodeMaterial {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
@@ -58,7 +57,7 @@ class SpriteNodeMaterial extends NodeMaterial {
 		 * particleMaterial.positionNode = positionBuffer.toAttribute();
 		 * ```
 		 *
-		 * @type {Node<vec2>?}
+		 * @type {?Node<vec3>}
 		 * @default null
 		 */
 		this.positionNode = null;
@@ -69,9 +68,9 @@ class SpriteNodeMaterial extends NodeMaterial {
 		 * the rotation with a node instead.
 		 *
 		 * If you don't want to overwrite the rotation but modify the existing
-		 * value instead, use {@link module:MaterialNode.materialRotation}.
+		 * value instead, use {@link materialRotation}.
 		 *
-		 * @type {Node<float>?}
+		 * @type {?Node<float>}
 		 * @default null
 		 */
 		this.rotationNode = null;
@@ -81,10 +80,18 @@ class SpriteNodeMaterial extends NodeMaterial {
 		 * `Object3D.scale`. The scale transformation based in `Object3D.scale`
 		 * is multiplied with the scale value of this node in the vertex shader.
 		 *
-		 * @type {Node<vec2>?}
+		 * @type {?Node<vec2>}
 		 * @default null
 		 */
 		this.scaleNode = null;
+
+		/**
+		 * In Sprites, the transparent property is enabled by default.
+		 *
+		 * @type {boolean}
+		 * @default true
+		 */
+		this.transparent = true;
 
 		this.setDefaultValues( _defaultValues );
 
@@ -103,9 +110,7 @@ class SpriteNodeMaterial extends NodeMaterial {
 
 		const { object, camera } = builder;
 
-		const sizeAttenuation = this.sizeAttenuation;
-
-		const { positionNode, rotationNode, scaleNode } = this;
+		const { positionNode, rotationNode, scaleNode, sizeAttenuation } = this;
 
 		const mvPosition = modelViewMatrix.mul( vec3( positionNode || 0 ) );
 
@@ -113,22 +118,13 @@ class SpriteNodeMaterial extends NodeMaterial {
 
 		if ( scaleNode !== null ) {
 
-			scale = scale.mul( float( scaleNode ) );
+			scale = scale.mul( vec2( scaleNode ) );
 
 		}
 
-		if ( sizeAttenuation === false ) {
+		if ( camera.isOrthographicCamera !== true && sizeAttenuation === false ) {
 
-			if ( camera.isPerspectiveCamera ) {
-
-				scale = scale.mul( mvPosition.z.negate() );
-
-			} else {
-
-				const orthoScale = float( 2.0 ).div( cameraProjectionMatrix.element( 1 ).element( 1 ) );
-				scale = scale.mul( orthoScale.mul( 2 ) );
-
-			}
+			scale = scale.mul( mvPosition.z.negate() );
 
 		}
 
@@ -136,7 +132,7 @@ class SpriteNodeMaterial extends NodeMaterial {
 
 		if ( object.center && object.center.isVector2 === true ) {
 
-			const center = reference( 'center', 'vec2', object );
+			const center = reference( 'center', 'vec2' );
 
 			alignedPosition = alignedPosition.sub( center.sub( 0.5 ) );
 
@@ -152,20 +148,10 @@ class SpriteNodeMaterial extends NodeMaterial {
 
 	}
 
-	copy( source ) {
-
-		this.positionNode = source.positionNode;
-		this.rotationNode = source.rotationNode;
-		this.scaleNode = source.scaleNode;
-
-		return super.copy( source );
-
-	}
-
 	/**
 	 * Whether to use size attenuation or not.
 	 *
-	 * @type {Boolean}
+	 * @type {boolean}
 	 * @default true
 	 */
 	get sizeAttenuation() {

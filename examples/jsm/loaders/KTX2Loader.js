@@ -1,77 +1,110 @@
-/**
- * Loader for KTX 2.0 GPU Texture containers.
- *
- * KTX 2.0 is a container format for various GPU texture formats. The loader
- * supports Basis Universal GPU textures, which can be quickly transcoded to
- * a wide variety of GPU texture compression formats, as well as some
- * uncompressed DataTexture and Data3DTexture formats.
- *
- * References:
- * - KTX: http://github.khronos.org/KTX-Specification/
- * - DFD: https://www.khronos.org/registry/DataFormat/specs/1.3/dataformat.1.3.html#basicdescriptor
- * - BasisU HDR: https://github.com/BinomialLLC/basis_universal/wiki/UASTC-HDR-Texture-Specification-v1.0
- */
-
 import {
-	CompressedTexture,
 	CompressedArrayTexture,
 	CompressedCubeTexture,
+	CompressedTexture,
 	Data3DTexture,
 	DataTexture,
 	FileLoader,
 	FloatType,
 	HalfFloatType,
-	NoColorSpace,
 	LinearFilter,
 	LinearMipmapLinearFilter,
+	NearestFilter,
+	NearestMipmapNearestFilter,
 	LinearSRGBColorSpace,
 	Loader,
-	RedFormat,
-	RGB_BPTC_UNSIGNED_Format,
-	RGB_ETC1_Format,
-	RGB_ETC2_Format,
-	RGB_PVRTC_4BPPV1_Format,
+	NoColorSpace,
+	RGBAFormat,
 	RGBA_ASTC_4x4_Format,
 	RGBA_ASTC_6x6_Format,
 	RGBA_BPTC_Format,
 	RGBA_ETC2_EAC_Format,
+	R11_EAC_Format,
+	SIGNED_R11_EAC_Format,
+	RG11_EAC_Format,
+	SIGNED_RG11_EAC_Format,
 	RGBA_PVRTC_4BPPV1_Format,
-	RGBA_S3TC_DXT5_Format,
+	RGBA_PVRTC_2BPPV1_Format,
 	RGBA_S3TC_DXT1_Format,
-	RGBAFormat,
+	RGBA_S3TC_DXT5_Format,
+	RGB_BPTC_UNSIGNED_Format,
+	RGB_ETC1_Format,
+	RGB_ETC2_Format,
+	RGB_PVRTC_4BPPV1_Format,
+	RGB_S3TC_DXT1_Format,
+	SIGNED_RED_GREEN_RGTC2_Format,
+	SIGNED_RED_RGTC1_Format,
+	RED_GREEN_RGTC2_Format,
+	RED_RGTC1_Format,
+	RGBFormat,
 	RGFormat,
+	RedFormat,
 	SRGBColorSpace,
 	UnsignedByteType,
+	UnsignedInt5999Type,
+	UnsignedInt101111Type,
+	UnsignedShortType
 } from 'three';
 import { WorkerPool } from '../utils/WorkerPool.js';
 import {
 	read,
 	KHR_DF_FLAG_ALPHA_PREMULTIPLIED,
+	KHR_DF_PRIMARIES_BT709,
+	KHR_DF_PRIMARIES_DISPLAYP3,
+	KHR_DF_PRIMARIES_UNSPECIFIED,
 	KHR_DF_TRANSFER_SRGB,
 	KHR_SUPERCOMPRESSION_NONE,
 	KHR_SUPERCOMPRESSION_ZSTD,
-	VK_FORMAT_UNDEFINED,
-	VK_FORMAT_R16_SFLOAT,
-	VK_FORMAT_R16G16_SFLOAT,
-	VK_FORMAT_R16G16B16A16_SFLOAT,
-	VK_FORMAT_R32_SFLOAT,
-	VK_FORMAT_R32G32_SFLOAT,
-	VK_FORMAT_R32G32B32A32_SFLOAT,
-	VK_FORMAT_R8_SRGB,
-	VK_FORMAT_R8_UNORM,
-	VK_FORMAT_R8G8_SRGB,
-	VK_FORMAT_R8G8_UNORM,
-	VK_FORMAT_R8G8B8A8_SRGB,
-	VK_FORMAT_R8G8B8A8_UNORM,
 	VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT,
+	VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK_EXT,
+	VK_FORMAT_ASTC_4x4_SRGB_BLOCK,
+	VK_FORMAT_ASTC_4x4_UNORM_BLOCK,
 	VK_FORMAT_ASTC_6x6_SRGB_BLOCK,
 	VK_FORMAT_ASTC_6x6_UNORM_BLOCK,
-	KHR_DF_PRIMARIES_UNSPECIFIED,
-	KHR_DF_PRIMARIES_BT709,
-	KHR_DF_PRIMARIES_DISPLAYP3
+	VK_FORMAT_BC1_RGBA_SRGB_BLOCK,
+	VK_FORMAT_BC1_RGBA_UNORM_BLOCK,
+	VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+	VK_FORMAT_BC1_RGB_UNORM_BLOCK,
+	VK_FORMAT_BC3_SRGB_BLOCK,
+	VK_FORMAT_BC3_UNORM_BLOCK,
+	VK_FORMAT_BC4_SNORM_BLOCK,
+	VK_FORMAT_BC4_UNORM_BLOCK,
+	VK_FORMAT_BC5_SNORM_BLOCK,
+	VK_FORMAT_BC5_UNORM_BLOCK,
+	VK_FORMAT_BC7_SRGB_BLOCK,
+	VK_FORMAT_BC7_UNORM_BLOCK,
+	VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK,
+	VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK,
+	VK_FORMAT_EAC_R11_UNORM_BLOCK,
+	VK_FORMAT_EAC_R11_SNORM_BLOCK,
+	VK_FORMAT_EAC_R11G11_UNORM_BLOCK,
+	VK_FORMAT_EAC_R11G11_SNORM_BLOCK,
+	VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG,
+	VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG,
+	VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG,
+	VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG,
+	VK_FORMAT_R16G16B16A16_SFLOAT,
+	VK_FORMAT_R16G16B16A16_UNORM,
+	VK_FORMAT_R16G16_SFLOAT,
+	VK_FORMAT_R16_SFLOAT,
+	VK_FORMAT_R32G32B32A32_SFLOAT,
+	VK_FORMAT_R32G32_SFLOAT,
+	VK_FORMAT_R32_SFLOAT,
+	VK_FORMAT_R8G8B8A8_SRGB,
+	VK_FORMAT_R8G8B8A8_UNORM,
+	VK_FORMAT_R8G8_SRGB,
+	VK_FORMAT_R8G8_UNORM,
+	VK_FORMAT_R8_SRGB,
+	VK_FORMAT_R8_UNORM,
+	VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
+	VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+	VK_FORMAT_UNDEFINED
 } from '../libs/ktx-parse.module.js';
 import { ZSTDDecoder } from '../libs/zstddec.module.js';
 import { DisplayP3ColorSpace, LinearDisplayP3ColorSpace } from '../math/ColorSpaces.js';
+
+const WASM_BIN_URL = new URL( '../libs/basis/basis_transcoder.wasm', import.meta.url ).toString();
+const WASM_JS_URL = new URL( '../libs/basis/basis_transcoder.js', import.meta.url ).toString();
 
 const _taskCache = new WeakMap();
 
@@ -79,11 +112,52 @@ let _activeLoaders = 0;
 
 let _zstd;
 
+/**
+ * A loader for KTX 2.0 GPU Texture containers.
+ *
+ * KTX 2.0 is a container format for various GPU texture formats. The loader supports Basis Universal GPU textures,
+ * which can be quickly transcoded to a wide variety of GPU texture compression formats. While KTX 2.0 also allows
+ * other hardware-specific formats, this loader does not yet parse them.
+ *
+ * This loader parses the KTX 2.0 container and transcodes to a supported GPU compressed texture format.
+ * The required WASM transcoder and JS wrapper are available from the `examples/jsm/libs/basis` directory.
+ *
+ * This loader relies on Web Assembly which is not supported in older browsers.
+ *
+ * References:
+ * - [KTX specification](http://github.khronos.org/KTX-Specification/)
+ * - [DFD](https://www.khronos.org/registry/DataFormat/specs/1.3/dataformat.1.3.html#basicdescriptor)
+ * - [BasisU HDR](https://github.com/BinomialLLC/basis_universal/wiki/UASTC-HDR-Texture-Specification-v1.0)
+ *
+ * ```js
+ * const loader = new KTX2Loader();
+ * loader.setTranscoderPath( 'examples/jsm/libs/basis/' );
+ * loader.detectSupport( renderer );
+ * const texture = loader.loadAsync( 'diffuse.ktx2' );
+ * ```
+ *
+ * @augments Loader
+ * @three_import import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+ */
 class KTX2Loader extends Loader {
 
+	/**
+	 * Constructs a new KTX2 loader.
+	 *
+	 * @param {LoadingManager} [manager] - The loading manager.
+	 */
 	constructor( manager ) {
 
 		super( manager );
+
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isKTX2Loader = true;
 
 		this.transcoderPath = '';
 		this.transcoderBinary = null;
@@ -106,6 +180,14 @@ class KTX2Loader extends Loader {
 
 	}
 
+	/**
+	 * Sets the transcoder path to optionally set the decoder load path from a CDN.
+	 *
+	 * By default The WASM transcoder and JS wrapper are loaded from the `examples/jsm/libs/basis` directory.
+	 *
+	 * @param {string} path - The transcoder path to set.
+	 * @return {KTX2Loader} A reference to this loader.
+	 */
 	setTranscoderPath( path ) {
 
 		this.transcoderPath = path;
@@ -114,30 +196,46 @@ class KTX2Loader extends Loader {
 
 	}
 
-	setWorkerLimit( num ) {
+	/**
+	 * Sets the maximum number of Web Workers to be allocated by this instance.
+	 *
+	 * @param {number} workerLimit - The worker limit.
+	 * @return {KTX2Loader} A reference to this loader.
+	 */
+	setWorkerLimit( workerLimit ) {
 
-		this.workerPool.setWorkerLimit( num );
+		this.workerPool.setWorkerLimit( workerLimit );
 
 		return this;
 
 	}
 
+
+	/**
+	 * Async version of {@link KTX2Loader#detectSupport}.
+	 *
+	 * @async
+	 * @deprecated
+	 * @param {WebGPURenderer} renderer - The renderer.
+	 * @return {Promise} A Promise that resolves when the support has been detected.
+	 */
 	async detectSupportAsync( renderer ) {
 
-		this.workerConfig = {
-			astcSupported: await renderer.hasFeatureAsync( 'texture-compression-astc' ),
-			astcHDRSupported: false, // https://github.com/gpuweb/gpuweb/issues/3856
-			etc1Supported: await renderer.hasFeatureAsync( 'texture-compression-etc1' ),
-			etc2Supported: await renderer.hasFeatureAsync( 'texture-compression-etc2' ),
-			dxtSupported: await renderer.hasFeatureAsync( 'texture-compression-bc' ),
-			bptcSupported: await renderer.hasFeatureAsync( 'texture-compression-bptc' ),
-			pvrtcSupported: await renderer.hasFeatureAsync( 'texture-compression-pvrtc' )
-		};
+		console.warn( 'KTX2Loader: "detectSupportAsync()" has been deprecated. Use "detectSupport()" and "await renderer.init();" when creating the renderer.' ); // @deprecated r181
 
-		return this;
+		await renderer.init();
+
+		return this.detectSupport( renderer );
 
 	}
 
+	/**
+	 * Detects hardware support for available compressed texture formats, to determine
+	 * the output format for the transcoder. Must be called before loading a texture.
+	 *
+	 * @param {WebGPURenderer|WebGLRenderer} renderer - The renderer.
+	 * @return {KTX2Loader} A reference to this loader.
+	 */
 	detectSupport( renderer ) {
 
 		if ( renderer.isWebGPURenderer === true ) {
@@ -147,8 +245,8 @@ class KTX2Loader extends Loader {
 				astcHDRSupported: false, // https://github.com/gpuweb/gpuweb/issues/3856
 				etc1Supported: renderer.hasFeature( 'texture-compression-etc1' ),
 				etc2Supported: renderer.hasFeature( 'texture-compression-etc2' ),
-				dxtSupported: renderer.hasFeature( 'texture-compression-bc' ),
-				bptcSupported: renderer.hasFeature( 'texture-compression-bptc' ),
+				dxtSupported: renderer.hasFeature( 'texture-compression-s3tc' ),
+				bptcSupported: renderer.hasFeature( 'texture-compression-bc' ),
 				pvrtcSupported: renderer.hasFeature( 'texture-compression-pvrtc' )
 			};
 
@@ -166,28 +264,63 @@ class KTX2Loader extends Loader {
 					|| renderer.extensions.has( 'WEBKIT_WEBGL_compressed_texture_pvrtc' )
 			};
 
+			if ( typeof navigator !== 'undefined' &&
+				typeof navigator.platform !== 'undefined' && typeof navigator.userAgent !== 'undefined' &&
+				navigator.platform.indexOf( 'Linux' ) >= 0 && navigator.userAgent.indexOf( 'Android' ) < 0 &&
+				this.workerConfig.astcSupported && this.workerConfig.etc2Supported &&
+				this.workerConfig.bptcSupported && this.workerConfig.dxtSupported ) {
+
+				// On Linux, Mesa drivers for AMD and Intel GPUs expose ETC1,ETC2 and ASTC even though the hardware doesn't support these.
+				// Using these extensions will result in expensive software decompression on the main thread inside the driver, causing performance issues.
+				// In general, browsers should not expose extensions for emulated formats, but Chrome and Firefox currently do so on Linux.
+				// Since a granular filter is a little too fragile and we can transcode into other GPU formats, disable formats that are likely to be emulated.
+
+				this.workerConfig.astcSupported = false;
+				this.workerConfig.etc1Supported = false;
+				this.workerConfig.etc2Supported = false;
+
+			}
+
 		}
 
 		return this;
 
 	}
 
+	// TODO: Make this method private
+
 	init() {
 
 		if ( ! this.transcoderPending ) {
 
-			// Load transcoder wrapper.
 			const jsLoader = new FileLoader( this.manager );
-			jsLoader.setPath( this.transcoderPath );
+			jsLoader.setPriority( this.priority );
+			jsLoader.setCache( this.cache );
 			jsLoader.setWithCredentials( this.withCredentials );
-			const jsContent = jsLoader.loadAsync( 'basis_transcoder.js' );
 
-			// Load transcoder WASM binary.
 			const binaryLoader = new FileLoader( this.manager );
-			binaryLoader.setPath( this.transcoderPath );
-			binaryLoader.setResponseType( 'arraybuffer' );
+			binaryLoader.setPriority( this.priority );
+			binaryLoader.setCache( this.cache );
 			binaryLoader.setWithCredentials( this.withCredentials );
-			const binaryContent = binaryLoader.loadAsync( 'basis_transcoder.wasm' );
+			binaryLoader.setResponseType( 'arraybuffer' );
+
+			let jsContent, binaryContent;
+			if ( this.transcoderPath === '' ) {
+
+				jsContent = jsLoader.loadAsync( WASM_JS_URL );
+				binaryContent = binaryLoader.loadAsync( WASM_BIN_URL );
+
+			} else {
+
+				// Load transcoder wrapper.
+				jsLoader.setPath( this.transcoderPath );
+				jsContent = jsLoader.loadAsync( 'basis_transcoder.js' );
+
+				// Load transcoder WASM binary.
+				binaryLoader.setPath( this.transcoderPath );
+				binaryContent = binaryLoader.loadAsync( 'basis_transcoder.wasm' );
+
+			}
 
 			this.transcoderPending = Promise.all( [ jsContent, binaryContent ] )
 				.then( ( [ jsContent, binaryContent ] ) => {
@@ -243,6 +376,15 @@ class KTX2Loader extends Loader {
 
 	}
 
+	/**
+	 * Starts loading from the given URL and passes the loaded KTX2 texture
+	 * to the `onLoad()` callback.
+	 *
+	 * @param {string} url - The path/URL of the file to be loaded. This can also be a data URI.
+	 * @param {function(CompressedTexture)} onLoad - Executed when the loading process has been finished.
+	 * @param {onProgressCallback} onProgress - Executed while the loading is in progress.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 */
 	load( url, onLoad, onProgress, onError ) {
 
 		if ( this.workerConfig === null ) {
@@ -252,9 +394,14 @@ class KTX2Loader extends Loader {
 		}
 
 		const loader = new FileLoader( this.manager );
+		loader.setPriority( this.priority );
+		loader.setCache( this.cache );
 
-		loader.setResponseType( 'arraybuffer' );
+		loader.setPath( this.path );
+		loader.setCrossOrigin( this.crossOrigin );
 		loader.setWithCredentials( this.withCredentials );
+		loader.setRequestHeader( this.requestHeader );
+		loader.setResponseType( 'arraybuffer' );
 
 		loader.load( url, ( buffer ) => {
 
@@ -264,6 +411,14 @@ class KTX2Loader extends Loader {
 
 	}
 
+	/**
+	 * Parses the given KTX2 data.
+	 *
+	 * @param {ArrayBuffer} buffer - The raw KTX2 data as an array buffer.
+	 * @param {function(CompressedTexture)} onLoad - Executed when the loading/parsing process has been finished.
+	 * @param {onErrorCallback} onError - Executed when errors occur.
+	 * @returns {Promise} A Promise that resolves when the parsing has been finished.
+	 */
 	parse( buffer, onLoad, onError ) {
 
 		if ( this.workerConfig === null ) {
@@ -323,8 +478,9 @@ class KTX2Loader extends Loader {
 	}
 
 	/**
+	 * @private
 	 * @param {ArrayBuffer} buffer
-	 * @param {object?} config
+	 * @param {?Object} config
 	 * @return {Promise<CompressedTexture|CompressedArrayTexture|DataTexture|Data3DTexture>}
 	 */
 	async _createTexture( buffer, config = {} ) {
@@ -364,14 +520,16 @@ class KTX2Loader extends Loader {
 
 	}
 
+	/**
+	 * Frees internal resources. This method should be called
+	 * when the loader is no longer required.
+	 */
 	dispose() {
 
 		this.workerPool.dispose();
 		if ( this.workerSourceURL ) URL.revokeObjectURL( this.workerSourceURL );
 
 		_activeLoaders --;
-
-		return this;
 
 	}
 
@@ -740,13 +898,9 @@ KTX2Loader.BasisWorker = function () {
 	];
 
 	const OPTIONS = {
-		// TODO: For ETC1S we intentionally sort by _UASTC_ priority, preserving
-		// a historical accident shown to avoid performance pitfalls for Linux with
-		// Firefox & AMD GPU (RadeonSI). Further work needed.
-		// See https://github.com/mrdoob/three.js/pull/29730.
 		[ BasisFormat.ETC1S ]: FORMAT_OPTIONS
 			.filter( ( opt ) => opt.basisFormat.includes( BasisFormat.ETC1S ) )
-			.sort( ( a, b ) => a.priorityUASTC - b.priorityUASTC ),
+			.sort( ( a, b ) => a.priorityETC1S - b.priorityETC1S ),
 
 		[ BasisFormat.UASTC ]: FORMAT_OPTIONS
 			.filter( ( opt ) => opt.basisFormat.includes( BasisFormat.UASTC ) )
@@ -831,51 +985,127 @@ KTX2Loader.BasisWorker = function () {
 // Parsing for non-Basis textures. These textures may have supercompression
 // like Zstd, but they do not require transcoding.
 
-const UNCOMPRESSED_FORMATS = new Set( [ RGBAFormat, RGFormat, RedFormat ] );
+const UNCOMPRESSED_FORMATS = new Set( [ RGBAFormat, RGBFormat, RGFormat, RedFormat ] );
+
+const NORMALIZED_VK_FORMATS = new Set( [ VK_FORMAT_R16G16B16A16_UNORM ] );
 
 const FORMAT_MAP = {
 
 	[ VK_FORMAT_R32G32B32A32_SFLOAT ]: RGBAFormat,
-	[ VK_FORMAT_R16G16B16A16_SFLOAT ]: RGBAFormat,
-	[ VK_FORMAT_R8G8B8A8_UNORM ]: RGBAFormat,
-	[ VK_FORMAT_R8G8B8A8_SRGB ]: RGBAFormat,
-
 	[ VK_FORMAT_R32G32_SFLOAT ]: RGFormat,
-	[ VK_FORMAT_R16G16_SFLOAT ]: RGFormat,
-	[ VK_FORMAT_R8G8_UNORM ]: RGFormat,
-	[ VK_FORMAT_R8G8_SRGB ]: RGFormat,
-
 	[ VK_FORMAT_R32_SFLOAT ]: RedFormat,
+
+	[ VK_FORMAT_R16G16B16A16_SFLOAT ]: RGBAFormat,
+	[ VK_FORMAT_R16G16_SFLOAT ]: RGFormat,
 	[ VK_FORMAT_R16_SFLOAT ]: RedFormat,
+
+	[ VK_FORMAT_R16G16B16A16_UNORM ]: RGBAFormat,
+
+	[ VK_FORMAT_R8G8B8A8_SRGB ]: RGBAFormat,
+	[ VK_FORMAT_R8G8B8A8_UNORM ]: RGBAFormat,
+	[ VK_FORMAT_R8G8_SRGB ]: RGFormat,
+	[ VK_FORMAT_R8G8_UNORM ]: RGFormat,
 	[ VK_FORMAT_R8_SRGB ]: RedFormat,
 	[ VK_FORMAT_R8_UNORM ]: RedFormat,
 
+	[ VK_FORMAT_E5B9G9R9_UFLOAT_PACK32 ]: RGBFormat,
+	[ VK_FORMAT_B10G11R11_UFLOAT_PACK32 ]: RGBFormat,
+
+	[ VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK ]: RGBA_ETC2_EAC_Format,
+	[ VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK ]: RGB_ETC2_Format,
+	[ VK_FORMAT_EAC_R11_UNORM_BLOCK ]: R11_EAC_Format,
+	[ VK_FORMAT_EAC_R11_SNORM_BLOCK ]: SIGNED_R11_EAC_Format,
+	[ VK_FORMAT_EAC_R11G11_UNORM_BLOCK ]: RG11_EAC_Format,
+	[ VK_FORMAT_EAC_R11G11_SNORM_BLOCK ]: SIGNED_RG11_EAC_Format,
+
 	[ VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT ]: RGBA_ASTC_4x4_Format,
+	[ VK_FORMAT_ASTC_4x4_SRGB_BLOCK ]: RGBA_ASTC_4x4_Format,
+	[ VK_FORMAT_ASTC_4x4_UNORM_BLOCK ]: RGBA_ASTC_4x4_Format,
+	[ VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK_EXT ]: RGBA_ASTC_6x6_Format,
 	[ VK_FORMAT_ASTC_6x6_SRGB_BLOCK ]: RGBA_ASTC_6x6_Format,
 	[ VK_FORMAT_ASTC_6x6_UNORM_BLOCK ]: RGBA_ASTC_6x6_Format,
+
+	[ VK_FORMAT_BC1_RGBA_SRGB_BLOCK ]: RGBA_S3TC_DXT1_Format,
+	[ VK_FORMAT_BC1_RGBA_UNORM_BLOCK ]: RGBA_S3TC_DXT1_Format,
+	[ VK_FORMAT_BC1_RGB_SRGB_BLOCK ]: RGB_S3TC_DXT1_Format,
+	[ VK_FORMAT_BC1_RGB_UNORM_BLOCK ]: RGB_S3TC_DXT1_Format,
+
+	[ VK_FORMAT_BC3_SRGB_BLOCK ]: RGBA_S3TC_DXT5_Format,
+	[ VK_FORMAT_BC3_UNORM_BLOCK ]: RGBA_S3TC_DXT5_Format,
+
+	[ VK_FORMAT_BC4_SNORM_BLOCK ]: SIGNED_RED_RGTC1_Format,
+	[ VK_FORMAT_BC4_UNORM_BLOCK ]: RED_RGTC1_Format,
+
+	[ VK_FORMAT_BC5_SNORM_BLOCK ]: SIGNED_RED_GREEN_RGTC2_Format,
+	[ VK_FORMAT_BC5_UNORM_BLOCK ]: RED_GREEN_RGTC2_Format,
+
+	[ VK_FORMAT_BC7_SRGB_BLOCK ]: RGBA_BPTC_Format,
+	[ VK_FORMAT_BC7_UNORM_BLOCK ]: RGBA_BPTC_Format,
+
+	[ VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG ]: RGBA_PVRTC_4BPPV1_Format,
+	[ VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG ]: RGBA_PVRTC_4BPPV1_Format,
+	[ VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG ]: RGBA_PVRTC_2BPPV1_Format,
+	[ VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ]: RGBA_PVRTC_2BPPV1_Format,
 
 };
 
 const TYPE_MAP = {
 
 	[ VK_FORMAT_R32G32B32A32_SFLOAT ]: FloatType,
-	[ VK_FORMAT_R16G16B16A16_SFLOAT ]: HalfFloatType,
-	[ VK_FORMAT_R8G8B8A8_UNORM ]: UnsignedByteType,
-	[ VK_FORMAT_R8G8B8A8_SRGB ]: UnsignedByteType,
-
 	[ VK_FORMAT_R32G32_SFLOAT ]: FloatType,
-	[ VK_FORMAT_R16G16_SFLOAT ]: HalfFloatType,
-	[ VK_FORMAT_R8G8_UNORM ]: UnsignedByteType,
-	[ VK_FORMAT_R8G8_SRGB ]: UnsignedByteType,
-
 	[ VK_FORMAT_R32_SFLOAT ]: FloatType,
+
+	[ VK_FORMAT_R16G16B16A16_SFLOAT ]: HalfFloatType,
+	[ VK_FORMAT_R16G16_SFLOAT ]: HalfFloatType,
 	[ VK_FORMAT_R16_SFLOAT ]: HalfFloatType,
+
+	[ VK_FORMAT_R16G16B16A16_UNORM ]: UnsignedShortType,
+
+	[ VK_FORMAT_R8G8B8A8_SRGB ]: UnsignedByteType,
+	[ VK_FORMAT_R8G8B8A8_UNORM ]: UnsignedByteType,
+	[ VK_FORMAT_R8G8_SRGB ]: UnsignedByteType,
+	[ VK_FORMAT_R8G8_UNORM ]: UnsignedByteType,
 	[ VK_FORMAT_R8_SRGB ]: UnsignedByteType,
 	[ VK_FORMAT_R8_UNORM ]: UnsignedByteType,
 
+	[ VK_FORMAT_E5B9G9R9_UFLOAT_PACK32 ]: UnsignedInt5999Type,
+	[ VK_FORMAT_B10G11R11_UFLOAT_PACK32 ]: UnsignedInt101111Type,
+
+	[ VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_EAC_R11_UNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_EAC_R11_SNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_EAC_R11G11_UNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_EAC_R11G11_SNORM_BLOCK ]: UnsignedByteType,
+
 	[ VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK_EXT ]: HalfFloatType,
+	[ VK_FORMAT_ASTC_4x4_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_ASTC_4x4_UNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK_EXT ]: HalfFloatType,
 	[ VK_FORMAT_ASTC_6x6_SRGB_BLOCK ]: UnsignedByteType,
 	[ VK_FORMAT_ASTC_6x6_UNORM_BLOCK ]: UnsignedByteType,
+
+	[ VK_FORMAT_BC1_RGBA_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC1_RGBA_UNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC1_RGB_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC1_RGB_UNORM_BLOCK ]: UnsignedByteType,
+
+	[ VK_FORMAT_BC3_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC3_UNORM_BLOCK ]: UnsignedByteType,
+
+	[ VK_FORMAT_BC4_SNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC4_UNORM_BLOCK ]: UnsignedByteType,
+
+	[ VK_FORMAT_BC5_SNORM_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC5_UNORM_BLOCK ]: UnsignedByteType,
+
+	[ VK_FORMAT_BC7_SRGB_BLOCK ]: UnsignedByteType,
+	[ VK_FORMAT_BC7_UNORM_BLOCK ]: UnsignedByteType,
+
+	[ VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG ]: UnsignedByteType,
+	[ VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG ]: UnsignedByteType,
+	[ VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG ]: UnsignedByteType,
+	[ VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ]: UnsignedByteType,
 
 };
 
@@ -885,7 +1115,14 @@ async function createRawTexture( container ) {
 
 	if ( FORMAT_MAP[ vkFormat ] === undefined ) {
 
-		throw new Error( 'THREE.KTX2Loader: Unsupported vkFormat.' );
+		throw new Error( 'THREE.KTX2Loader: Unsupported vkFormat: ' + vkFormat );
+
+	}
+
+	// TODO: Merge the TYPE_MAP warning into the thrown error above, after r190.
+	if ( TYPE_MAP[ vkFormat ] === undefined ) {
+
+		console.warn( 'THREE.KTX2Loader: Missing ".type" for vkFormat: ' + vkFormat );
 
 	}
 
@@ -914,7 +1151,6 @@ async function createRawTexture( container ) {
 	//
 
 	const mipmaps = [];
-
 
 	for ( let levelIndex = 0; levelIndex < container.levels.length; levelIndex ++ ) {
 
@@ -952,13 +1188,23 @@ async function createRawTexture( container ) {
 
 			);
 
-		} else if ( TYPE_MAP[ vkFormat ] === HalfFloatType ) {
+		} else if ( TYPE_MAP[ vkFormat ] === HalfFloatType || TYPE_MAP[ vkFormat ] === UnsignedShortType ) {
 
 			data = new Uint16Array(
 
 				levelData.buffer,
 				levelData.byteOffset,
 				levelData.byteLength / Uint16Array.BYTES_PER_ELEMENT
+
+			);
+
+		} else if ( TYPE_MAP[ vkFormat ] === UnsignedInt5999Type || TYPE_MAP[ vkFormat ] === UnsignedInt101111Type ) {
+
+			data = new Uint32Array(
+
+				levelData.buffer,
+				levelData.byteOffset,
+				levelData.byteLength / Uint32Array.BYTES_PER_ELEMENT
 
 			);
 
@@ -979,6 +1225,9 @@ async function createRawTexture( container ) {
 
 	}
 
+	// levelCount = 0 implies runtime-generated mipmaps.
+	const useMipmaps = container.levelCount === 0 || mipmaps.length > 1;
+
 	let texture;
 
 	if ( UNCOMPRESSED_FORMATS.has( FORMAT_MAP[ vkFormat ] ) ) {
@@ -986,19 +1235,52 @@ async function createRawTexture( container ) {
 		texture = container.pixelDepth === 0
 			? new DataTexture( mipmaps[ 0 ].data, container.pixelWidth, container.pixelHeight )
 			: new Data3DTexture( mipmaps[ 0 ].data, container.pixelWidth, container.pixelHeight, container.pixelDepth );
+		texture.mipmaps = mipmaps;
+		texture.minFilter = useMipmaps ? NearestMipmapNearestFilter : NearestFilter;
+		texture.magFilter = NearestFilter;
+		texture.generateMipmaps = container.levelCount === 0;
+		texture.normalized = NORMALIZED_VK_FORMATS.has( vkFormat );
 
 	} else {
 
 		if ( container.pixelDepth > 0 ) throw new Error( 'THREE.KTX2Loader: Unsupported pixelDepth.' );
 
-		texture = new CompressedTexture( mipmaps, container.pixelWidth, container.pixelHeight );
+		if ( container.faceCount === 6 ) {
 
-		texture.minFilter = mipmaps.length === 1 ? LinearFilter : LinearMipmapLinearFilter;
+			const faces = [];
+
+			for ( let face = 0; face < 6; face ++ ) {
+
+				const faceMipmaps = [];
+
+				for ( const mipmap of mipmaps ) {
+
+					const faceLength = mipmap.data.length / 6;
+
+					faceMipmaps.push( {
+						data: mipmap.data.subarray( face * faceLength, ( face + 1 ) * faceLength ),
+						width: mipmap.width,
+						height: mipmap.height
+					} );
+
+				}
+
+				faces.push( { mipmaps: faceMipmaps, width: container.pixelWidth, height: container.pixelHeight } );
+
+			}
+
+			texture = new CompressedCubeTexture( faces );
+
+		} else {
+
+			texture = new CompressedTexture( mipmaps, container.pixelWidth, container.pixelHeight );
+
+		}
+
+		texture.minFilter = useMipmaps ? LinearMipmapLinearFilter : LinearFilter;
 		texture.magFilter = LinearFilter;
 
 	}
-
-	texture.mipmaps = mipmaps;
 
 	texture.type = TYPE_MAP[ vkFormat ];
 	texture.format = FORMAT_MAP[ vkFormat ];
@@ -1007,7 +1289,7 @@ async function createRawTexture( container ) {
 
 	//
 
-	return Promise.resolve( texture );
+	return texture;
 
 }
 

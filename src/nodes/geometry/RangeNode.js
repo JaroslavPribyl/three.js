@@ -1,21 +1,28 @@
 import Node from '../core/Node.js';
+import NodeError from '../core/NodeError.js';
 import { getValueType } from '../core/NodeUtils.js';
-import { buffer } from '../accessors/BufferNode.js';
-import { instancedBufferAttribute } from '../accessors/BufferAttributeNode.js';
 import { instanceIndex } from '../core/IndexNode.js';
-import { nodeProxy, float } from '../tsl/TSLBase.js';
+import { uniform } from '../core/UniformNode.js';
+import { hash } from '../math/Hash.js';
+import { mix } from '../math/MathNode.js';
+import { nodeProxy, float, uint, vec4 } from '../tsl/TSLBase.js';
 
 import { Vector4 } from '../../math/Vector4.js';
-import { MathUtils } from '../../math/MathUtils.js';
-import { InstancedBufferAttribute } from '../../core/InstancedBufferAttribute.js';
 
-/** @module RangeNode **/
+let _rangeId = 0;
 
-let min = null;
-let max = null;
+// Per-object seed shared by all range nodes, so the values differ between objects.
+
+const objectSeed = /*@__PURE__*/ uniform( 0, 'uint' ).onObjectUpdate( ( { object } ) => {
+
+	const objectId = object !== null ? object.id : 0; // compute has no object
+
+	return Math.imul( objectId, 0x9E3779B9 ) >>> 0;
+
+} );
 
 /**
- * `RangeNode` generates random instanced attribute data in a defined range.
+ * `RangeNode` generates random per-instance values in a defined range.
  * An exemplary use case for this utility node is to generate random per-instance
  * colors:
  * ```js
@@ -59,18 +66,36 @@ class RangeNode extends Node {
 		 */
 		this.maxNode = maxNode;
 
+		/**
+		 * Salt of the random sequence. It uses a counter of range nodes instead of the
+		 * global node id, so the values only change when range nodes are added or removed.
+		 *
+		 * @private
+		 * @type {number}
+		 */
+		this._salt = Math.imul( _rangeId ++, 0x85EBCA6B ) >>> 0;
+
+	}
+
+	isCacheable( /*builder*/ ) {
+
+		return false;
+
 	}
 
 	/**
 	 * Returns the vector length which is computed based on the range definition.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {Number} The vector length.
+	 * @return {number} The vector length.
 	 */
 	getVectorLength( builder ) {
 
-		const minLength = builder.getTypeLength( getValueType( this.minNode.value ) );
-		const maxLength = builder.getTypeLength( getValueType( this.maxNode.value ) );
+		const minNode = this.getConstNode( this.minNode );
+		const maxNode = this.getConstNode( this.maxNode );
+
+		const minLength = builder.getTypeLength( getValueType( minNode.value ) );
+		const maxLength = builder.getTypeLength( getValueType( maxNode.value ) );
 
 		return minLength > maxLength ? minLength : maxLength;
 
@@ -80,81 +105,75 @@ class RangeNode extends Node {
 	 * This method is overwritten since the node type is inferred from range definition.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @return {String} The node type.
+	 * @return {string} The node type.
 	 */
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
-		return builder.object.count > 1 ? builder.getTypeFromLength( this.getVectorLength( builder ) ) : 'float';
+		return builder.getTypeFromLength( this.getVectorLength( builder ) );
+
+	}
+
+	/**
+	 * Returns a constant node from the given node by traversing it.
+	 *
+	 * @param {Node} node - The node to traverse.
+	 * @returns {Node} The constant node, if found.
+	 */
+	getConstNode( node ) {
+
+		let output = null;
+
+		node.traverse( n => {
+
+			if ( n.isConstNode === true ) {
+
+				output = n;
+
+			}
+
+		} );
+
+		if ( output === null ) {
+
+			throw new NodeError( 'THREE.TSL: No "ConstNode" found in node graph.', this.stackTrace );
+
+		}
+
+		return output;
 
 	}
 
 	setup( builder ) {
 
-		const object = builder.object;
+		const minNode = this.getConstNode( this.minNode );
+		const maxNode = this.getConstNode( this.maxNode );
 
-		let output = null;
+		const minValue = minNode.value;
+		const maxValue = maxNode.value;
 
-		if ( object.count > 1 ) {
+		const minLength = builder.getTypeLength( getValueType( minValue ) );
+		const maxLength = builder.getTypeLength( getValueType( maxValue ) );
 
-			const minValue = this.minNode.value;
-			const maxValue = this.maxNode.value;
+		const min = new Vector4();
+		const max = new Vector4();
 
-			const minLength = builder.getTypeLength( getValueType( minValue ) );
-			const maxLength = builder.getTypeLength( getValueType( maxValue ) );
+		if ( minLength === 1 ) min.setScalar( minValue );
+		else if ( minValue.isColor ) min.set( minValue.r, minValue.g, minValue.b, 1 );
+		else min.set( minValue.x, minValue.y, minValue.z || 0, minValue.w || 0 );
 
-			min = min || new Vector4();
-			max = max || new Vector4();
+		if ( maxLength === 1 ) max.setScalar( maxValue );
+		else if ( maxValue.isColor ) max.set( maxValue.r, maxValue.g, maxValue.b, 1 );
+		else max.set( maxValue.x, maxValue.y, maxValue.z || 0, maxValue.w || 0 );
 
-			min.setScalar( 0 );
-			max.setScalar( 0 );
+		// The values are hashed from the instance index instead of stored per object, so they work
+		// for any instance count. The salt decorrelates range nodes.
 
-			if ( minLength === 1 ) min.setScalar( minValue );
-			else if ( minValue.isColor ) min.set( minValue.r, minValue.g, minValue.b, 1 );
-			else min.set( minValue.x, minValue.y, minValue.z || 0, minValue.w || 0 );
+		const seed = objectSeed.bitXor( uint( this._salt ) );
 
-			if ( maxLength === 1 ) max.setScalar( maxValue );
-			else if ( maxValue.isColor ) max.set( maxValue.r, maxValue.g, maxValue.b, 1 );
-			else max.set( maxValue.x, maxValue.y, maxValue.z || 0, maxValue.w || 0 );
+		const index = instanceIndex.mul( 4 ).add( seed );
+		const random = vec4( hash( index ), hash( index.add( 1 ) ), hash( index.add( 2 ) ), hash( index.add( 3 ) ) );
 
-			const stride = 4;
-
-			const length = stride * object.count;
-			const array = new Float32Array( length );
-
-			for ( let i = 0; i < length; i ++ ) {
-
-				const index = i % stride;
-
-				const minElementValue = min.getComponent( index );
-				const maxElementValue = max.getComponent( index );
-
-				array[ i ] = MathUtils.lerp( minElementValue, maxElementValue, Math.random() );
-
-			}
-
-			const nodeType = this.getNodeType( builder );
-
-			if ( object.count <= 4096 ) {
-
-				output = buffer( array, 'vec4', object.count ).element( instanceIndex ).convert( nodeType );
-
-			} else {
-
-				// TODO: Improve anonymous buffer attribute creation removing this part
-				const bufferAttribute = new InstancedBufferAttribute( array, 4 );
-				builder.geometry.setAttribute( '__range' + this.id, bufferAttribute );
-
-				output = instancedBufferAttribute( bufferAttribute ).convert( nodeType );
-
-			}
-
-		} else {
-
-			output = float( 0 );
-
-		}
-
-		return output;
+		return mix( vec4( min ), vec4( max ), random ).convert( this.getNodeType( builder ) );
 
 	}
 
@@ -165,9 +184,10 @@ export default RangeNode;
 /**
  * TSL function for creating a range node.
  *
+ * @tsl
  * @function
  * @param {Node<any>} [minNode=float()] - A node defining the lower bound of the range.
  * @param {Node<any>} [maxNode=float()] - A node defining the upper bound of the range.
  * @returns {RangeNode}
  */
-export const range = /*@__PURE__*/ nodeProxy( RangeNode );
+export const range = /*@__PURE__*/ nodeProxy( RangeNode ).setParameterLength( 2 );

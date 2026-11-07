@@ -1,8 +1,6 @@
 
 import Node from './Node.js';
-import { getLengthFromType } from './NodeUtils.js';
-
-/** @module StructTypeNode **/
+import { getAlignmentFromType, getMemoryLengthFromType } from './NodeUtils.js';
 
 /**
  * Generates a layout for struct members.
@@ -48,7 +46,7 @@ class StructTypeNode extends Node {
 	 * Creates an instance of StructTypeNode.
 	 *
 	 * @param {Object} membersLayout - The layout of the members for the struct.
-	 * @param {string} [name=null] - The optional name of the struct.
+	 * @param {?string} [name=null] - The optional name of the struct.
 	 */
 	constructor( membersLayout, name = null ) {
 
@@ -64,7 +62,7 @@ class StructTypeNode extends Node {
 		/**
 		 * The name of the struct.
 		 *
-		 * @type {String}
+		 * @type {?string}
 		 * @default null
 		 */
 		this.name = name;
@@ -72,31 +70,53 @@ class StructTypeNode extends Node {
 		/**
 		 * This flag can be used for type testing.
 		 *
-		 * @type {Boolean}
+		 * @type {boolean}
 		 * @readonly
 		 * @default true
 		 */
-		this.isStructLayoutNode = true;
+		this.isStructTypeNode = true;
+
+	}
+
+	isCacheable( /*builder*/ ) {
+
+		return false;
 
 	}
 
 	/**
-	 * Returns the length of the struct.
-	 * The length is calculated by summing the lengths of the struct's members.
+	 * Returns the length of the struct in 4-byte elements (e.g. float or int components).
+	 * The length is calculated by summing the lengths of the struct's members, accounting for memory alignment.
+	 * To get the size in bytes, multiply the returned value by 4.
 	 *
-	 * @returns {Number} The length of the struct.
+	 * @returns {number} The length of the struct in 4-byte elements.
 	 */
 	getLength() {
 
-		let length = 0;
+		let maxAlignment = 1; // maximum alignment value in this struct
+		let offset = 0; // global buffer offset in 4 byte elements
 
 		for ( const member of this.membersLayout ) {
 
-			length += getLengthFromType( member.type );
+			const type = member.type;
+
+			const itemSize = getMemoryLengthFromType( type );
+			const alignment = getAlignmentFromType( type );
+			maxAlignment = Math.max( maxAlignment, alignment );
+
+			const chunkOffset = offset % maxAlignment; // offset in the current chunk of maxAlignment elements
+			const overhang = chunkOffset % alignment; // distance from the last aligned offset
+			if ( overhang !== 0 ) {
+
+				offset += alignment - overhang; // move to next aligned offset
+
+			}
+
+			offset += itemSize;
 
 		}
 
-		return length;
+		return ( Math.ceil( offset / maxAlignment ) * maxAlignment ); // ensure length is a multiple of maxAlignment
 
 	}
 
@@ -108,11 +128,18 @@ class StructTypeNode extends Node {
 
 	}
 
-	getNodeType( builder ) {
+	generateNodeType( builder ) {
 
 		const structType = builder.getStructTypeFromNode( this, this.membersLayout, this.name );
 
 		return structType.name;
+
+	}
+
+	setup( builder ) {
+
+		builder.getStructTypeFromNode( this, this.membersLayout, this.name );
+		builder.addInclude( this );
 
 	}
 

@@ -9,20 +9,41 @@ import {
 } from 'three';
 
 /**
- * Port of http://webglsamples.org/blob/blob.html
+ * A marching cubes implementation.
+ *
+ * Port of: {@link http://webglsamples.org/blob/blob.html}
+ *
+ * @three_import import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
  */
-
 class MarchingCubes extends Mesh {
 
+	/**
+	 * Constructs a new marching cubes instance.
+	 *
+	 * @param {number} resolution - The effect's resolution.
+	 * @param {Material} material - The cube's material.
+	 * @param {boolean} [enableUvs=false] - Whether texture coordinates should be animated or not.
+	 * @param {boolean} [enableColors=false] - Whether colors should be animated or not.
+	 * @param {number} [maxPolyCount=10000] - The maximum size of the geometry buffers.
+	 */
 	constructor( resolution, material, enableUvs = false, enableColors = false, maxPolyCount = 10000 ) {
 
 		const geometry = new BufferGeometry();
 
 		super( geometry, material );
 
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
 		this.isMarchingCubes = true;
 
 		const scope = this;
+
+		let vertexCount = 0;
 
 		// temp buffers used in polygonize
 
@@ -30,7 +51,20 @@ class MarchingCubes extends Mesh {
 		const nlist = new Float32Array( 12 * 3 );
 		const clist = new Float32Array( 12 * 3 );
 
+		/**
+		 * Whether texture coordinates should be animated or not.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
 		this.enableUvs = enableUvs;
+
+		/**
+		 * Whether colors should be animated or not.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
 		this.enableColors = enableColors;
 
 		// functions have to be object properties
@@ -64,7 +98,7 @@ class MarchingCubes extends Mesh {
 
 			//
 
-			this.count = 0;
+			vertexCount = 0;
 
 			const maxVertexCount = maxPolyCount * 3;
 
@@ -400,7 +434,7 @@ class MarchingCubes extends Mesh {
 
 		function posnormtriv( pos, norm, colors, o1, o2, o3 ) {
 
-			const c = scope.count * 3;
+			const c = vertexCount * 3;
 
 			// positions
 
@@ -456,7 +490,7 @@ class MarchingCubes extends Mesh {
 
 			if ( scope.enableUvs ) {
 
-				const d = scope.count * 2;
+				const d = vertexCount * 2;
 
 				scope.uvArray[ d + 0 ] = pos[ o1 + 0 ];
 				scope.uvArray[ d + 1 ] = pos[ o1 + 2 ];
@@ -487,7 +521,7 @@ class MarchingCubes extends Mesh {
 
 			}
 
-			scope.count += 3;
+			vertexCount += 3;
 
 		}
 
@@ -495,9 +529,17 @@ class MarchingCubes extends Mesh {
 		// Metaballs
 		/////////////////////////////////////
 
-		// Adds a reciprocal ball (nice and blobby) that, to be fast, fades to zero after
-		// a fixed distance, determined by strength and subtract.
-
+		/**
+		 * Adds a reciprocal ball (nice and blobby) that, to be fast, fades to zero after
+		 * a fixed distance, determined by strength and subtract.
+		 *
+		 * @param {number} ballx - The x-coordinate of the ball.
+		 * @param {number} bally - The y-coordinate of the ball.
+		 * @param {number} ballz - The z-coordinate of the ball.
+		 * @param {number} strength - The strength factor.
+		 * @param {number} subtract - The subtract factor.
+		 * @param {Color} colors - The color.
+		 */
 		this.addBall = function ( ballx, bally, ballz, strength, subtract, colors ) {
 
 			const sign = Math.sign( strength );
@@ -598,6 +640,12 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Adds a plane along the x-axis.
+		 *
+		 * @param {number} strength - The strength factor.
+		 * @param {number} subtract - The subtract factor.
+		 */
 		this.addPlaneX = function ( strength, subtract ) {
 
 			// cache attribute lookups
@@ -643,6 +691,12 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Adds a plane along the y-axis.
+		 *
+		 * @param {number} strength - The strength factor.
+		 * @param {number} subtract - The subtract factor.
+		 */
 		this.addPlaneY = function ( strength, subtract ) {
 
 			// cache attribute lookups
@@ -687,6 +741,12 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Adds a plane along the z-axis.
+		 *
+		 * @param {number} strength - The strength factor.
+		 * @param {number} subtract - The subtract factor.
+		 */
 		this.addPlaneZ = function ( strength, subtract ) {
 
 			// cache attribute lookups
@@ -735,6 +795,14 @@ class MarchingCubes extends Mesh {
 		// Updates
 		/////////////////////////////////////
 
+		/**
+		 * Sets the cell value for the given coordinates.
+		 *
+		 * @param {number} x - The x value.
+		 * @param {number} y - The y value.
+		 * @param {number} z - The z value.
+		 * @param {number} value - The value to set.
+		 */
 		this.setCell = function ( x, y, z, value ) {
 
 			const index = this.size2 * z + this.size * y + x;
@@ -742,6 +810,14 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Returns the cell value for the given coordinates.
+		 *
+		 * @param {number} x - The x value.
+		 * @param {number} y - The y value.
+		 * @param {number} z - The z value.
+		 * @return {number} The value.
+		 */
 		this.getCell = function ( x, y, z ) {
 
 			const index = this.size2 * z + this.size * y + x;
@@ -749,6 +825,11 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Applies a blur with the given intensity.
+		 *
+		 * @param {number} [intensity=1] - The intensity of the blur.
+		 */
 		this.blur = function ( intensity = 1 ) {
 
 			const field = this.field;
@@ -802,6 +883,9 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Resets the effect.
+		 */
 		this.reset = function () {
 
 			// wipe the normal cache
@@ -818,9 +902,12 @@ class MarchingCubes extends Mesh {
 
 		};
 
+		/**
+		 * Updates the effect.
+		 */
 		this.update = function () {
 
-			this.count = 0;
+			vertexCount = 0;
 
 			// Triangulate. Yeah, this is slow.
 
@@ -851,7 +938,7 @@ class MarchingCubes extends Mesh {
 
 			// set the draw range to only the processed triangles
 
-			this.geometry.setDrawRange( 0, this.count );
+			this.geometry.setDrawRange( 0, vertexCount );
 
 			// update geometry data
 
@@ -863,7 +950,7 @@ class MarchingCubes extends Mesh {
 
 			// safety check
 
-			if ( this.count / 3 > maxPolyCount ) console.warn( 'THREE.MarchingCubes: Geometry buffers too small for rendering. Please create an instance with a higher poly count.' );
+			if ( vertexCount / 3 > maxPolyCount ) console.warn( 'THREE.MarchingCubes: Geometry buffers too small for rendering. Please create an instance with a higher poly count.' );
 
 		};
 
