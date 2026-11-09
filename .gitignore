@@ -25,4 +25,4 @@ test/treeshake/three.webgpu.nodes.bundle.min.js
 test/unit/build
 
 **/node_modules
-build
+/build
